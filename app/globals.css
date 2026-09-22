@@ -94,25 +94,31 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Dark: the same chalk-and-iron idea with the roles swapped — iron surfaces, chalk ink.
+   Plate colours are brightened so they stay legible against a dark surface. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #16181c; /* iron, darker than the ink used in light mode */
+  --foreground: #e9eae7; /* chalk */
+  --card: #1c1f24;
+  --card-foreground: #e9eae7;
+  --popover: #1c1f24;
+  --popover-foreground: #e9eae7;
+  --primary: #e9eae7;
+  --primary-foreground: #16181c;
+  --secondary: #24272d;
+  --secondary-foreground: #e9eae7;
+  --muted: #24272d;
+  --muted-foreground: #a2a8b0;
+  --accent: #24272d;
+  --accent-foreground: #e9eae7;
+  --destructive: #ff6b63;
+  --border: #2e323a;
+  --input: #2e323a;
+  --ring: #5b9cff;
+  --plate-red: #ff5a4d;
+  --plate-blue: #5b9cff;
+  --plate-yellow: #ffc93f;
+  --plate-green: #4cc07a;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

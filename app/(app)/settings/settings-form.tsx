@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ADULT_AGE } from "@/lib/age";
 import type { Profile } from "@/lib/profile";
 import { saveProfileAction } from "@/app/profile-actions";
+import { ThemeChoice } from "./theme-choice";
 import { cn } from "@/lib/utils";
 
 const field =
@@ -88,6 +89,13 @@ export function SettingsForm({ profile }: { profile: Profile }) {
           {status?.kind === "saved" && "Saved."}
           {status?.kind === "error" && status.message}
         </p>
+      </section>
+
+      <section aria-labelledby="appearance" className="flex flex-col gap-2 border-t border-border pt-6">
+        <h2 id="appearance" className="font-display text-xl font-bold">
+          Appearance
+        </h2>
+        <ThemeChoice />
       </section>
 
       <section aria-labelledby="sharing" className="flex flex-col gap-2 border-t border-border pt-6">
