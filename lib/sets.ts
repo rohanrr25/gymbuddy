@@ -56,6 +56,30 @@ export async function listLastSetPerExercise(): Promise<LoggedSet[]> {
   return rows.map(toLoggedSet);
 }
 
+// Exercises you've logged, most recently trained first (for the progress picker).
+export async function listLoggedExerciseIds(): Promise<string[]> {
+  const userId = await requireUserId();
+  const { rows } = await pool.query(
+    `select exercise_id from sets where user_id = $1
+     group by exercise_id order by max(performed_at) desc`,
+    [userId],
+  );
+  return rows.map((r) => r.exercise_id);
+}
+
+// Every set of one exercise, oldest first. The phone groups them into sessions by its own
+// calendar day. ponytail: capped at 5,000 sets; paginate or pre-aggregate if anyone gets near it.
+export async function listSetsForExercise(exerciseId: string): Promise<LoggedSet[]> {
+  const userId = await requireUserId();
+  if (!UUID.test(exerciseId)) return [];
+  const { rows } = await pool.query(
+    `select ${COLUMNS} from sets where user_id = $1 and exercise_id = $2
+     order by performed_at limit 5000`,
+    [userId, exerciseId],
+  );
+  return rows.map(toLoggedSet);
+}
+
 export type NewSet = {
   id: string;
   exerciseId: string;
