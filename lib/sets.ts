@@ -7,6 +7,8 @@ import { isMuscleGroup } from "@/lib/muscle-groups";
 // touches that user's rows. proxy.ts is just the front door (TRACKER decisions).
 
 export type Exercise = { id: string; name: string; muscleGroup: string; custom?: boolean };
+export const EFFORTS = ["easy", "on_target", "hard"] as const;
+export type Effort = (typeof EFFORTS)[number];
 export type LoggedSet = {
   id: string;
   exerciseId: string;
@@ -14,10 +16,11 @@ export type LoggedSet = {
   reps: number;
   performedAt: string; // ISO timestamp
   routineDayId: string | null; // the routine day it was logged under, if any
+  effort: Effort | null; // how it felt, if you said
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const COLUMNS = "id, exercise_id, weight, reps, performed_at, routine_day_id";
+const COLUMNS = "id, exercise_id, weight, reps, performed_at, routine_day_id, effort";
 
 async function requireUserId() {
   const { userId } = await auth();
@@ -163,6 +166,28 @@ export async function logSet(input: NewSet) {
   );
 }
 
+// Fix a typo in a logged set.
+export async function updateSet(id: string, weight: number, reps: number) {
+  const userId = await requireUserId();
+  if (!UUID.test(id)) throw new Error("Invalid id");
+  if (!Number.isFinite(weight) || weight < 0 || weight > 2000) throw new Error("Weight must be 0–2000 lb");
+  if (!Number.isInteger(reps) || reps < 1 || reps > 100) throw new Error("Reps must be 1–100");
+  await pool.query("update sets set weight = $3, reps = $4 where id = $1 and user_id = $2", [
+    id,
+    userId,
+    weight,
+    reps,
+  ]);
+}
+
+// How a set felt. Optional, and changeable.
+export async function setEffort(id: string, effort: Effort | null) {
+  const userId = await requireUserId();
+  if (!UUID.test(id)) throw new Error("Invalid id");
+  if (effort !== null && !EFFORTS.includes(effort)) throw new Error("Unknown effort");
+  await pool.query("update sets set effort = $3 where id = $1 and user_id = $2", [id, userId, effort]);
+}
+
 export async function deleteSet(id: string) {
   const userId = await requireUserId();
   if (!UUID.test(id)) throw new Error("Invalid id");
@@ -176,6 +201,7 @@ function toLoggedSet(r: {
   reps: number;
   performed_at: Date;
   routine_day_id: string | null;
+  effort: Effort | null;
 }): LoggedSet {
   return {
     id: r.id,
@@ -184,5 +210,6 @@ function toLoggedSet(r: {
     reps: r.reps,
     performedAt: r.performed_at.toISOString(),
     routineDayId: r.routine_day_id,
+    effort: r.effort,
   };
 }

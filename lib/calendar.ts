@@ -30,7 +30,7 @@ export async function listDaySets(fromISO: string, toISO: string): Promise<DaySe
   const userId = await requireUserId();
   const [from, to] = range(fromISO, toISO);
   const { rows } = await pool.query(
-    `select s.id, s.exercise_id, s.weight, s.reps, s.performed_at, s.routine_day_id, e.name
+    `select s.id, s.exercise_id, s.weight, s.reps, s.performed_at, s.routine_day_id, s.effort, e.name
      from sets s join exercises e on e.id = s.exercise_id
      where s.user_id = $1 and s.performed_at >= $2 and s.performed_at < $3
      order by s.performed_at`,
@@ -43,6 +43,7 @@ export async function listDaySets(fromISO: string, toISO: string): Promise<DaySe
     reps: r.reps,
     performedAt: r.performed_at.toISOString(),
     routineDayId: r.routine_day_id,
+    effort: r.effort,
     exerciseName: r.name,
   }));
 }

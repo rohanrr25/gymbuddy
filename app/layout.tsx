@@ -26,10 +26,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GymBuddy",
   description: "Track workouts, routines, and personal records.",
+  appleWebApp: { capable: true, title: "GymBuddy", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#f3f4f2",
+  // Fills the notch area when installed to the Home Screen.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

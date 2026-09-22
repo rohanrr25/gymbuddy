@@ -13,9 +13,16 @@ import { beats } from "@/lib/progress";
 import type { PR } from "@/lib/prs";
 import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
-import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
+import type { Effort, Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
-import { addExerciseAction, completeWorkoutAction, deleteSetAction, logSetAction } from "@/app/actions";
+import {
+  addExerciseAction,
+  completeWorkoutAction,
+  deleteSetAction,
+  logSetAction,
+  setEffortAction,
+  updateSetAction,
+} from "@/app/actions";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
 type SetRow = LoggedSet & { pending?: boolean };
@@ -23,6 +30,11 @@ type Change = { type: "add"; set: SetRow } | { type: "remove"; id: string };
 
 const noSubscribe = () => () => {};
 const OFF_PLAN = "off-plan";
+const EFFORT_LABELS: [Effort, string][] = [
+  ["easy", "Easy"],
+  ["on_target", "On target"],
+  ["hard", "Hard"],
+];
 
 export function Logger({
   exercises,
@@ -58,6 +70,8 @@ export function Logger({
   const [sessionBests, setSessionBests] = useState(new Map<string, LoggedSet>());
   const [newPR, setNewPR] = useState<{ set: NewSet; previous: { weight: number; reps: number } } | null>(null);
   const timer = useRestTimer();
+  const [rating, setRating] = useState<{ set: NewSet; effort: Effort | null } | null>(null); // the set just logged
+  const [editing, setEditing] = useState<LoggedSet | null>(null);
 
   const byId = new Map(exercises.map((e) => [e.id, e]));
 
@@ -132,6 +146,7 @@ export function Logger({
           ...payload,
           routineDayId: payload.routineDayId ?? null,
           performedAt: payload.performedAt ?? new Date().toISOString(),
+          effort: null,
           pending: true,
         },
       });
@@ -146,6 +161,7 @@ export function Logger({
   function logSet() {
     const set = { id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum, routineDayId: day?.id ?? null };
     save(set);
+    setRating({ set, effort: null });
     setWeightInput(null); // the next set pre-fills from last session's next set
     setRepsInput(null);
 
@@ -155,7 +171,7 @@ export function Logger({
     const best = saved && earlier ? (beats(earlier, saved) ? earlier : saved) : (saved ?? earlier);
     setNewPR(saved && best && beats(set, best) ? { set, previous: { weight: best.weight, reps: best.reps } } : null);
     if (!earlier || beats(set, earlier)) {
-      setSessionBests(new Map(sessionBests).set(exerciseId, { ...set, performedAt: new Date().toISOString() }));
+      setSessionBests(new Map(sessionBests).set(exerciseId, { ...set, performedAt: new Date().toISOString(), effort: null }));
     }
 
     // Hit the target number of sets? Move on to the next planned exercise, with no rest timer:
@@ -202,6 +218,44 @@ export function Logger({
         selectExercise(null);
       } catch {
         setCompleteError(true);
+      }
+    });
+  }
+
+  function rate(effort: Effort) {
+    if (!rating) return;
+    const next = rating.effort === effort ? null : effort; // tapping again clears it
+    setRating({ ...rating, effort: next });
+    startTransition(async () => {
+      try {
+        await setEffortAction(rating.set.id, next);
+      } catch {
+        setRating({ ...rating, effort: rating.effort }); // put it back
+      }
+    });
+  }
+
+  function startEditing(set: LoggedSet) {
+    setEditing(set);
+    setWeightInput(String(set.weight));
+    setRepsInput(String(set.reps));
+  }
+
+  function cancelEditing() {
+    setEditing(null);
+    setWeightInput(null);
+    setRepsInput(null);
+  }
+
+  function saveEdit() {
+    if (!editing) return;
+    const { id } = editing;
+    cancelEditing();
+    startTransition(async () => {
+      try {
+        await updateSetAction(id, weightNum, repsNum);
+      } catch {
+        setFailed(null);
       }
     });
   }
@@ -380,11 +434,41 @@ export function Logger({
           />
         </div>
 
-        <Button className="h-16 w-full text-lg font-semibold" disabled={!valid} onClick={logSet}>
-          Log set
-        </Button>
+        {editing ? (
+          <div className="flex gap-2">
+            <Button variant="outline" className="h-16 px-5 text-lg" onClick={cancelEditing}>
+              Cancel
+            </Button>
+            <Button className="h-16 flex-1 text-lg font-semibold" disabled={!valid} onClick={saveEdit}>
+              Save changes
+            </Button>
+          </div>
+        ) : (
+          <Button className="h-16 w-full text-lg font-semibold" disabled={!valid} onClick={logSet}>
+            Log set
+          </Button>
+        )}
         {!valid && (
           <p className="-mt-2 text-center text-sm text-muted-foreground">Enter a weight and 1–100 reps to log.</p>
+        )}
+
+        {rating && !editing && (
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2">
+            <span className="px-1 text-sm text-muted-foreground">How did that feel?</span>
+            <div className="ml-auto flex gap-1">
+              {EFFORT_LABELS.map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={rating.effort === value ? "default" : "ghost"}
+                  aria-pressed={rating.effort === value}
+                  className="h-11 px-3 text-sm"
+                  onClick={() => rate(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
         )}
 
         {timer.panel}
@@ -445,15 +529,33 @@ export function Logger({
           {today.map((s) => {
             const exercise = byId.get(s.exerciseId);
             return (
-              <li key={s.id} className={cn("flex items-center gap-3 py-2", s.pending && "opacity-60")}>
-                <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", PLATE[exercise?.muscleGroup ?? ""])} />
-                <span className="min-w-0 flex-1 truncate">{exercise?.name}</span>
-                <span className="font-display text-xl font-semibold tabular-nums">
-                  {s.weight} × {s.reps}
-                </span>
-                <time dateTime={s.performedAt} className="w-16 text-right text-sm text-muted-foreground tabular-nums">
-                  {new Date(s.performedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                </time>
+              <li key={s.id} className={cn("flex items-center gap-1 py-1", s.pending && "opacity-60")}>
+                <button
+                  type="button"
+                  disabled={s.pending}
+                  aria-label={`Edit ${exercise?.name} ${s.weight} × ${s.reps}`}
+                  onClick={() => startEditing(s)}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                    editing?.id === s.id && "bg-secondary",
+                  )}
+                >
+                  <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", PLATE[exercise?.muscleGroup ?? ""])} />
+                  <span className="min-w-0 flex-1 truncate">
+                    {exercise?.name}
+                    {s.effort && (
+                      <span className="block text-xs text-muted-foreground">
+                        {EFFORT_LABELS.find(([value]) => value === s.effort)?.[1]}
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-display text-xl font-semibold tabular-nums">
+                    {s.weight} × {s.reps}
+                  </span>
+                  <time dateTime={s.performedAt} className="w-14 text-right text-sm text-muted-foreground tabular-nums">
+                    {new Date(s.performedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </time>
+                </button>
                 <Button
                   variant="ghost"
                   className="size-11"

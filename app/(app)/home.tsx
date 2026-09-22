@@ -5,11 +5,13 @@ import Link from "next/link";
 import { ChevronRight, Flame, Settings } from "lucide-react";
 import { PLATE } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
+import type { Weighing } from "@/lib/bodyweight";
 import type { Profile } from "@/lib/profile";
 import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise } from "@/lib/sets";
 import { dayKey, recentWeek, streakWeeks, trainingDays, workoutsThisWeek } from "@/lib/streak";
+import { Bodyweight } from "./bodyweight";
 import { cn } from "@/lib/utils";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
@@ -23,12 +25,14 @@ export function Home({
   workoutTimes,
   setTimes,
   exercises,
+  bodyweights,
 }: {
   profile: Profile;
   plan: Plan;
   workoutTimes: string[];
   setTimes: string[];
   exercises: Exercise[];
+  bodyweights: Weighing[];
 }) {
   // Weeks, days and "today" are the phone's, so this renders on the client.
   const isClient = useSyncExternalStore(noSubscribe, () => true, () => false);
@@ -105,6 +109,8 @@ export function Home({
       </section>
 
       {/* Streak + this week. A coach message (the push, later the AI) belongs right here. */}
+      <Bodyweight bodyweights={bodyweights} />
+
       <section aria-labelledby="streak" className="flex flex-col gap-3">
         <h2 id="streak" className="sr-only">
           Your week
