@@ -56,7 +56,7 @@ export function RoutineEditor({ routine, exercises }: { routine: Routine; exerci
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 pt-4 pb-12">
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 pt-4 pb-28">
       <h1 className="sr-only">Edit routine</h1>
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">

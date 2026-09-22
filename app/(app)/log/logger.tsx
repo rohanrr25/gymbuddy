@@ -13,7 +13,7 @@ import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
-import { addExerciseAction, completeWorkoutAction, deleteSetAction, logSetAction } from "./actions";
+import { addExerciseAction, completeWorkoutAction, deleteSetAction, logSetAction } from "@/app/actions";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
 type SetRow = LoggedSet & { pending?: boolean };
@@ -214,7 +214,7 @@ export function Logger({
     });
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-7 px-4 pt-4 pb-12">
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-7 px-4 pt-4 pb-28">
       {plan && isClient ? (
         <section aria-labelledby="plan" className="flex flex-col gap-3">
           {completedDay && (

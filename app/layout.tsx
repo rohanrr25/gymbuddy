@@ -40,21 +40,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ClerkProvider>
-          <header className="mx-auto flex w-full max-w-md items-center gap-1 px-4 pt-4">
-            <Link href="/" translate="no" className="mr-auto truncate font-display text-lg font-bold tracking-tight">
+          {/* Navigation lives in the bottom tab bar (app/(app)/tab-bar.tsx). */}
+          <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 pt-4">
+            <Link href="/" translate="no" className="truncate font-display text-lg font-bold tracking-tight">
               GymBuddy
             </Link>
-            <nav aria-label="Main" className="flex shrink-0 items-center">
-              {[
-                ["/", "Log"],
-                ["/routines", "Routines"],
-                ["/progress", "Progress"],
-              ].map(([href, label]) => (
-                <Link key={href} href={href} className="flex h-11 items-center rounded-lg px-2 hover:bg-muted">
-                  {label}
-                </Link>
-              ))}
-            </nav>
             <UserButton />
           </header>
           {children}

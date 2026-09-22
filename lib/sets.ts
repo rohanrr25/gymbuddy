@@ -109,6 +109,19 @@ export async function listSetsForExercise(exerciseId: string): Promise<LoggedSet
   return rows.map(toLoggedSet);
 }
 
+// Timestamps of recent sets, for the streak and the week strip. The phone groups them
+// into its own calendar days.
+export async function listRecentSetTimes(days = 120): Promise<string[]> {
+  const userId = await requireUserId();
+  const { rows } = await pool.query(
+    `select performed_at from sets
+     where user_id = $1 and performed_at > now() - ($2 || ' days')::interval
+     order by performed_at`,
+    [userId, days],
+  );
+  return rows.map((r) => r.performed_at.toISOString());
+}
+
 export type NewSet = {
   id: string;
   exerciseId: string;
