@@ -142,17 +142,19 @@ export async function completeWorkout(dayId: string | null) {
   if (rowCount === 0) throw new Error("Routine day not found");
 }
 
-// When workouts were completed, for streaks and the week strip. The phone groups them
-// into its own calendar days.
-export async function listRecentWorkoutTimes(days = 120): Promise<string[]> {
+// Completed workouts, for streaks, the week strip and the calendar. The phone groups
+// them into its own calendar days.
+export async function listRecentWorkouts(
+  days = 120,
+): Promise<{ completedAt: string; routineDayId: string | null }[]> {
   const userId = await requireUserId();
   const { rows } = await pool.query(
-    `select completed_at from workouts
+    `select completed_at, routine_day_id from workouts
      where user_id = $1 and completed_at > now() - ($2 || ' days')::interval
      order by completed_at`,
     [userId, days],
   );
-  return rows.map((r) => r.completed_at.toISOString());
+  return rows.map((r) => ({ completedAt: r.completed_at.toISOString(), routineDayId: r.routine_day_id }));
 }
 
 export async function createRoutine(template: Template): Promise<string> {

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 // Links, not buttons: each tab has its own URL.
-export function ProgressTabs({ current }: { current: "charts" | "prs" }) {
+export function ProgressTabs({ current }: { current: "charts" | "prs" | "calendar" }) {
   const tabs = [
     { id: "charts", href: "/progress", label: "Charts" },
     { id: "prs", href: "/progress/prs", label: "PRs" },
+    { id: "calendar", href: "/progress/calendar", label: "Calendar" },
   ] as const;
   return (
-    <nav aria-label="Progress" className="grid grid-cols-2 gap-1 rounded-xl bg-secondary p-1">
+    <nav aria-label="Progress" className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1">
       {tabs.map((t) => (
         <Link
           key={t.id}
