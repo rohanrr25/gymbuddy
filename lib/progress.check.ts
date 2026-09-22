@@ -1,6 +1,10 @@
 // Run: npm run check
 import assert from "node:assert/strict";
-import { niceTicks, toSessions } from "./progress.ts";
+import { beats, niceTicks, toSessions } from "./progress.ts";
+
+assert.ok(beats({ weight: 185, reps: 1 }, { weight: 180, reps: 10 }), "heavier wins, whatever the reps");
+assert.ok(beats({ weight: 185, reps: 6 }, { weight: 185, reps: 5 }), "equal weight: more reps wins");
+assert.ok(!beats({ weight: 185, reps: 5 }, { weight: 185, reps: 5 }), "matching a PR isn't beating it");
 
 const at = (local: string, weight: number, reps: number) => ({ performedAt: new Date(local).toISOString(), weight, reps });
 

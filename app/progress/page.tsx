@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listExercises, listLoggedExerciseIds, listSetsForExercise } from "@/lib/sets";
 import { ExercisePicker } from "./exercise-picker";
 import { ProgressChart } from "./progress-chart";
+import { ProgressTabs } from "./tabs";
 
 export const metadata: Metadata = { title: "Progress · GymBuddy" };
 
@@ -18,6 +19,7 @@ export default async function ProgressPage(props: PageProps<"/progress">) {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 pt-4 pb-12">
       <h1 className="font-display text-3xl font-bold">Progress</h1>
+      <ProgressTabs current="charts" />
       {selected ? (
         <>
           <ExercisePicker exercises={logged} value={selected.id} />

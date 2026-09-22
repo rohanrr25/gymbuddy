@@ -2,9 +2,11 @@
 
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Trophy, X } from "lucide-react";
 import { ExerciseSelect, PLATE } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
+import { beats } from "@/lib/progress";
+import type { PR } from "@/lib/prs";
 import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
@@ -23,11 +25,13 @@ export function Logger({
   recentSets,
   lastSets,
   plan,
+  prs,
 }: {
   exercises: Exercise[];
   recentSets: LoggedSet[];
   lastSets: LoggedSet[];
   plan: Plan;
+  prs: PR[];
 }) {
   const [sets, applyChange] = useOptimistic<SetRow[], Change>(recentSets, (state, change) =>
     change.type === "add"
@@ -48,6 +52,9 @@ export function Logger({
   const [failed, setFailed] = useState<NewSet | null>(null);
   const [deleted, setDeleted] = useState<LoggedSet | null>(null); // offered for undo
   const [deleteError, setDeleteError] = useState(false);
+  // Best set per exercise logged on this screen, so a second PR in one session is caught too.
+  const [sessionBests, setSessionBests] = useState(new Map<string, LoggedSet>());
+  const [newPR, setNewPR] = useState<{ set: NewSet; previous: { weight: number; reps: number } } | null>(null);
 
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const latestFor = (exerciseId: string) =>
@@ -132,7 +139,18 @@ export function Logger({
   }
 
   function logSet() {
-    save({ id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum, routineDayId: day?.id ?? null });
+    const set = { id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum, routineDayId: day?.id ?? null };
+    save(set);
+
+    // New PR? Only against a best you had before; a first-ever session shouldn't cheer every warm-up.
+    const saved = prs.find((p) => p.exerciseId === exerciseId);
+    const earlier = sessionBests.get(exerciseId);
+    const best = saved && earlier ? (beats(earlier, saved) ? earlier : saved) : (saved ?? earlier);
+    setNewPR(saved && best && beats(set, best) ? { set, previous: { weight: best.weight, reps: best.reps } } : null);
+    if (!earlier || beats(set, earlier)) {
+      setSessionBests(new Map(sessionBests).set(exerciseId, { ...set, performedAt: new Date().toISOString() }));
+    }
+
     // Hit the target number of sets? Move on to the next planned exercise.
     if (target && doneToday(exerciseId) + 1 >= target.targetSets) selectExercise(null);
   }
@@ -141,6 +159,12 @@ export function Logger({
   function remove(set: LoggedSet) {
     setDeleteError(false);
     setDeleted(null);
+    if (newPR?.set.id === set.id) setNewPR(null);
+    if (sessionBests.get(set.exerciseId)?.id === set.id) {
+      const next = new Map(sessionBests);
+      next.delete(set.exerciseId);
+      setSessionBests(next);
+    }
     startTransition(async () => {
       applyChange({ type: "remove", id: set.id });
       try {
@@ -312,6 +336,21 @@ export function Logger({
         </Button>
         {!valid && (
           <p className="-mt-2 text-center text-sm text-muted-foreground">Enter a weight and 1–100 reps to log.</p>
+        )}
+
+        {/* Plate red is reserved for PRs (TRACKER → Design system). Text stays in ink. */}
+        {newPR && (
+          <div role="status" className="flex items-center gap-3 rounded-lg border-2 border-plate-red bg-card p-3">
+            <Trophy aria-hidden className="size-6 shrink-0 text-plate-red" />
+            <p className="text-sm">
+              <span className="font-display text-lg font-bold">
+                New PR: {byId.get(newPR.set.exerciseId)?.name} {newPR.set.weight} × {newPR.set.reps}
+              </span>
+              <span className="block text-muted-foreground">
+                Your previous best was {newPR.previous.weight} × {newPR.previous.reps}.
+              </span>
+            </p>
+          </div>
         )}
 
         {failed && (

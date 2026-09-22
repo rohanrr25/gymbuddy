@@ -9,6 +9,12 @@ export type Session<S extends SetLike> = {
   volume: number; // sum of weight × reps, in lb
 };
 
+// The PR rule: heavier wins; at equal weight, more reps wins. Used for session top sets,
+// the PR list, and the "New PR" alert, so they always agree.
+export function beats(a: { weight: number; reps: number }, b: { weight: number; reps: number }) {
+  return a.weight > b.weight || (a.weight === b.weight && a.reps > b.reps);
+}
+
 // One session per local calendar day (the phone's timezone), oldest first.
 export function toSessions<S extends SetLike>(sets: S[]): Session<S>[] {
   const byDay = new Map<string, S[]>();
@@ -22,9 +28,7 @@ export function toSessions<S extends SetLike>(sets: S[]): Session<S>[] {
     key,
     date: new Date(daySets[0].performedAt),
     sets: daySets,
-    top: daySets.reduce((best, s) =>
-      s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps) ? s : best,
-    ),
+    top: daySets.reduce((best, s) => (beats(s, best) ? s : best)),
     volume: daySets.reduce((sum, s) => sum + s.weight * s.reps, 0),
   }));
 }
