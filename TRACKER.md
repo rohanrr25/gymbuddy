@@ -29,7 +29,8 @@ A gym buddy, not just a tracker: something that **keeps you honest and pushes yo
 | **Deploys** | Push to `main` → Production. Any other branch → preview URL. Via the Vercel GitHub integration. Verified end to end with `38c1a48`. |
 | **Repo** | https://github.com/rohanrr25/gymbuddy (public) |
 | **Vercel** | project `gymbuddy`, team `self-2e78` |
-| **App** | Static placeholder page. No routes or UI touch the DB yet, and there's no auth. |
+| **App** | Placeholder page behind sign-in. No routes or UI touch the DB yet. |
+| **Auth** | Clerk (`gymbuddy-auth`, free Hobby plan, a **development** instance on `*.accounts.dev`, see G11). `proxy.ts` sends every signed-out request to Clerk's hosted sign-in page. `<ClerkProvider>` sits inside `<body>` in `app/layout.tsx`, with a `<UserButton />` header. Keys: `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, set for all environments. SDK `@clerk/nextjs` v7 (Core 3). |
 | **Database** | Neon Postgres 18.6 (`gymbuddy-db`, free plan, `iad1`, same region as the functions). Connection string in `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct, for migrations). Set for Production, Preview, and Development; local copy in `.env.local`. Driver: `pg` (G8). No tables yet. |
 | **Stack** | Next.js 16.3.5 (App Router, Turbopack) · React 19.2.8 · TypeScript 5 · Tailwind v4 · shadcn/ui 4.21 (Base UI, Nova preset, Lucide) |
 | **Local tools** | Node 25.9.0 (Vercel builds on Node 24) · npm 11.12 · Vercel CLI 59.25 (logged in as `rohanrr25`, linked to `self-2e78/gymbuddy`) · gh 2.101 |
@@ -46,7 +47,7 @@ Status: ⬜ not started · 🟡 in progress · ✅ done (with the commit)
 |---|---|---|---|
 | 0 | Deployable app | Live URL, push-to-deploy | ✅ `38c1a48` |
 | 1 | Database | Neon Postgres provisioned, `DATABASE_URL` in the project and in `.env.local` | ✅ Neon free plan, `iad1`, Postgres 18.6, Neon Auth off. Test query passed 2026-09-21. |
-| 2 | Sign in | Only signed-in users reach the app; data is scoped by `user_id`. Needed first because production is public. | ⬜ Clerk chosen |
+| 2 | Sign in | Only signed-in users reach the app. Needed first because production is public. (Scoping data by `user_id` happens in feature 3, where the data is.) | 🟡 Built and verified locally (signed-out → 307 to Clerk sign-in). Verifying on production. |
 | 3 | Log a set | Pick an exercise, enter weight × reps, save; see today's sets. Fast, tap-based, usable on the phone. | ⬜ |
 | 4 | Exercise history | Past sets for one exercise, newest first | ⬜ |
 | 5 | PRs | Per-exercise best, computed from sets, plus manually entered PRs (the better one wins) | ⬜ |
@@ -62,7 +63,7 @@ Status: ⬜ not started · 🟡 in progress · ✅ done (with the commit)
 
 ### Later: parked, don't build yet
 
-Goals (bulk/cut, targets, timeline) · bodyweight tracking · reminders and notifications · AI program generation and chat (v2) · Apple Health and other health data (v3) · native iPhone app · public release work (signup polish, privacy policy, Sign in with Apple for the App Store) · offline sync · first `/graphify` run (once there's real code)
+Goals (bulk/cut, targets, timeline) · bodyweight tracking · reminders and notifications · AI program generation and chat (v2) · Apple Health and other health data (v3) · native iPhone app · public release work (own domain, Clerk production instance (G11), signup polish, Clerk shadcn theme, privacy policy, Sign in with Apple for the App Store) · offline sync · first `/graphify` run (once there's real code)
 
 ## Open decisions
 
@@ -84,6 +85,8 @@ Goals (bulk/cut, targets, timeline) · bodyweight tracking · reminders and noti
 | 2026-09-21 | **PRs: manual entries + computed from sets** | The user wants to enter a PR for one exercise directly, without logging a workout (e.g. lifts from before the app). Stored in a manual-PR table. With no manual entry, the PR is computed from logged sets. **Interpretation (not yet confirmed):** when both exist, the better one wins, so a new logged set can still beat a typed-in PR. No `is_pr` flag on Set, because a stored copy can drift from the history. |
 | 2026-09-21 | **Multi-user product; the user is the first beta tester** | "It's gonna start off with just me as a beta tester and if I actually like it then I want to release it." So every table gets a `user_id` from day one, and we use real auth rather than a password gate (a gate would be thrown away at release). No signup polish, onboarding, or admin tools until release is real (ponytail). |
 | 2026-09-21 | **Auth: Clerk** (over Neon Auth) | Least auth code of our own (prebuilt UI, so fewer security bugs), a mature path to a native iPhone app, and Sign in with Apple for the App Store. Rows store the Clerk user ID as text. Consequence: install Neon with `-m auth=false` so there aren't two auth systems. |
+| 2026-09-21 | **Sign-in uses Clerk's hosted page**, no in-app sign-in routes | Bare essentials: zero sign-in UI to build or maintain, and no public routes to get wrong. Build custom pages only if the hosted page becomes a problem. Clerk's shadcn theme was skipped too (cosmetic, parked in Later). |
+| 2026-09-21 | **Rule: `proxy.ts` is only the front door** | Next.js 16's docs say proxy "should not be used as a full session management or authorization solution." So every data function (server action, route handler, query) calls `await auth()` itself and scopes by `userId`. Server actions are public POST endpoints. |
 | 2026-09-21 | Project skills: **ponytail** and **graphify** | User asked for them. Installed in project scope (`.claude/skills/`, pinned in `skills-lock.json`) so ponytail's always-on mode doesn't affect other projects. Checked before installing: both repos are well established (MIT / Apache-2.0), and graphify's PyPI package really is named `graphifyy` (from its own `pyproject.toml`), not a lookalike. |
 
 ---
@@ -138,6 +141,11 @@ Problems that took more than one attempt. Check here before debugging.
 ### G10 — Neon install needs terms accepted in the browser
 - **Symptom:** `vercel integration add neon --non-interactive` returns `"reason": "integration_terms_acceptance_required"` with a `verification_uri`. Nothing is created.
 - **Fix:** the user opens the URI and accepts, then re-run the same command. It also installed Neon's agent skills into `.agents/skills/` (symlinked from `.claude/skills/`) and added them to `skills-lock.json`.
+
+### G11 — Clerk is a development instance, and that matters at release
+- The install created a dev instance: `pk_test_`/`sk_test_` keys, sign-in on `charmed-pangolin-1157.accounts.dev`, and Clerk shows development-mode branding. Fine for the beta.
+- **At release:** a Clerk production instance needs a domain we own; `*.vercel.app` won't do. Verify against Clerk's docs then. Parked under Later → public release work.
+- Clerk's install also added 6 agent skills in `.agents/skills/clerk-*`. Only `clerk-setup` and `clerk-nextjs-patterns` are relevant now.
 
 ---
 
