@@ -1,10 +1,13 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// Every page and API route requires sign-in. Signed-out visitors are sent to
-// Clerk's hosted sign-in page, so the app has no public routes of its own.
+// The app icons are the only public routes: a phone fetches them when you add the app to
+// your Home Screen, and an icon isn't private. (The manifest is already public: the matcher
+// below skips .webmanifest.) Everything else requires sign-in.
+const isPublic = createRouteMatcher(["/icon", "/apple-icon"]);
+
 // This is only the front door: data functions must still check auth() themselves.
-export default clerkMiddleware(async (auth) => {
-  await auth.protect();
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublic(req)) await auth.protect();
 });
 
 export const config = {
