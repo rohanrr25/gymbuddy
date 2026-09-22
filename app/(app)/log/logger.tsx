@@ -2,12 +2,13 @@
 
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Trophy, X } from "lucide-react";
+import { Check, ChevronDown, TrendingUp, Trophy, X } from "lucide-react";
 import { ExerciseSelect, PLATE } from "@/components/exercise-select";
 import { useRestTimer } from "@/components/rest-timer";
 import { recommendedRest, restForRange } from "@/lib/rest";
 import { Button } from "@/components/ui/button";
-import { prefillSet } from "@/lib/prefill";
+import { lastSessionSets, prefillSet } from "@/lib/prefill";
+import { suggest } from "@/lib/push";
 import { beats } from "@/lib/progress";
 import type { PR } from "@/lib/prs";
 import type { getActivePlan } from "@/lib/routines";
@@ -94,6 +95,9 @@ export function Logger({
 
   // Pre-fill replays your last session of this exercise, set by set (lib/prefill.ts).
   const template = todayKey ? prefillSet(sets, exerciseId, todayKey, doneToday(exerciseId)) : undefined;
+  // The push: what to do about the weight, shown before this exercise's first set today.
+  const push = target && todayKey ? suggest(lastSessionSets(sets, exerciseId, todayKey), target) : null;
+  const showPush = push && doneToday(exerciseId) === 0;
   const weight = weightInput ?? (template ? String(template.weight) : "");
   const reps = repsInput ?? (template ? String(template.reps) : "");
   const weightNum = Number(weight);
@@ -331,6 +335,35 @@ export function Logger({
             label="Exercise"
           />
         </label>
+
+        {showPush && (
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-xl border bg-card p-3",
+              push.kind === "add" ? "border-plate-green" : "border-border",
+            )}
+          >
+            <TrendingUp aria-hidden className={cn("size-5 shrink-0", push.kind === "add" ? "text-plate-green" : "text-muted-foreground")} />
+            <p className="min-w-0 flex-1 text-sm">
+              <span className="font-medium">
+                {push.kind === "add" ? `Go up: ${push.weight} lb × ${push.reps}` : `Stay at ${push.weight} lb`}
+              </span>
+              <span className="block text-muted-foreground">{push.reason}</span>
+            </p>
+            {push.kind === "add" && (
+              <Button
+                variant="outline"
+                className="h-11 shrink-0 px-4"
+                onClick={() => {
+                  setWeightInput(String(push.weight));
+                  setRepsInput(String(push.reps));
+                }}
+              >
+                Use
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
           <NumberField name="Weight" unit="lb" value={weight} onChange={setWeightInput} step={5} min={0} decimal />
