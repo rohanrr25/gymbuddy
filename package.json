@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
-    "check": "node lib/rotation.check.ts && node lib/progress.check.ts"
+    "check": "node lib/rotation.check.ts && node lib/progress.check.ts && node lib/rest.check.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

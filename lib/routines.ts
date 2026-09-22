@@ -6,7 +6,14 @@ import { pool, withTransaction } from "@/lib/db";
 // who's asking and only touches that user's routines. Days and exercises are
 // reached only through a routine the user owns.
 
-export type RoutineExercise = { id: string; exerciseId: string; targetSets: number; repMin: number; repMax: number };
+export type RoutineExercise = {
+  id: string;
+  exerciseId: string;
+  targetSets: number;
+  repMin: number;
+  repMax: number;
+  restSeconds: number | null; // null = recommended from the rep range (lib/rest.ts)
+};
 export type RoutineDay = { id: string; name: string; exercises: RoutineExercise[] };
 export type Routine = { id: string; name: string; isActive: boolean; days: RoutineDay[] };
 export type RoutineSummary = { id: string; name: string; isActive: boolean; dayNames: string[] };
@@ -51,7 +58,7 @@ export async function getRoutine(id: string): Promise<Routine | null> {
   const [days, exercises] = await Promise.all([
     pool.query("select id, name from routine_days where routine_id = $1 order by position", [id]),
     pool.query(
-      `select e.id, e.day_id, e.exercise_id, e.target_sets, e.rep_min, e.rep_max
+      `select e.id, e.day_id, e.exercise_id, e.target_sets, e.rep_min, e.rep_max, e.rest_seconds
        from routine_exercises e join routine_days d on d.id = e.day_id
        where d.routine_id = $1 order by e.position`,
       [id],
@@ -72,6 +79,7 @@ export async function getRoutine(id: string): Promise<Routine | null> {
           targetSets: e.target_sets,
           repMin: e.rep_min,
           repMax: e.rep_max,
+          restSeconds: e.rest_seconds,
         })),
     })),
   };
@@ -197,13 +205,13 @@ export async function saveRoutine(input: Routine) {
     for (const day of input.days) {
       for (const [position, e] of day.exercises.entries()) {
         await db.query(
-          `insert into routine_exercises (id, day_id, exercise_id, position, target_sets, rep_min, rep_max)
-           values ($1, $2, $3, $4, $5, $6, $7)
+          `insert into routine_exercises (id, day_id, exercise_id, position, target_sets, rep_min, rep_max, rest_seconds)
+           values ($1, $2, $3, $4, $5, $6, $7, $9)
            on conflict (id) do update set day_id = excluded.day_id, exercise_id = excluded.exercise_id,
              position = excluded.position, target_sets = excluded.target_sets,
-             rep_min = excluded.rep_min, rep_max = excluded.rep_max
+             rep_min = excluded.rep_min, rep_max = excluded.rep_max, rest_seconds = excluded.rest_seconds
            where routine_exercises.day_id in (select id from routine_days where routine_id = $8)`,
-          [e.id, day.id, e.exerciseId, position, e.targetSets, e.repMin, e.repMax, routineId],
+          [e.id, day.id, e.exerciseId, position, e.targetSets, e.repMin, e.repMax, routineId, e.restSeconds ?? null],
         );
       }
     }
@@ -248,6 +256,10 @@ function validate(r: Routine) {
       if (!Number.isInteger(e.targetSets) || e.targetSets < 1 || e.targetSets > 20) fail("Sets must be 1–20");
       const repsOk = [e.repMin, e.repMax].every((n) => Number.isInteger(n) && n >= 1 && n <= 100);
       if (!repsOk || e.repMin > e.repMax) fail("Rep range must be 1–100, low to high");
+      const rest = e.restSeconds ?? null; // missing (an older page still open) = recommended
+      if (rest !== null && (!Number.isInteger(rest) || rest < 15 || rest > 600)) {
+        fail("Rest must be 15 s to 10 min");
+      }
     }
   }
 }

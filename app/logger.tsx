@@ -4,6 +4,8 @@ import { useOptimistic, useState, useSyncExternalStore, useTransition } from "re
 import Link from "next/link";
 import { Check, ChevronDown, Trophy, X } from "lucide-react";
 import { ExerciseSelect, PLATE } from "@/components/exercise-select";
+import { useRestTimer } from "@/components/rest-timer";
+import { recommendedRest, restForRange } from "@/lib/rest";
 import { Button } from "@/components/ui/button";
 import { beats } from "@/lib/progress";
 import type { PR } from "@/lib/prs";
@@ -55,6 +57,7 @@ export function Logger({
   // Best set per exercise logged on this screen, so a second PR in one session is caught too.
   const [sessionBests, setSessionBests] = useState(new Map<string, LoggedSet>());
   const [newPR, setNewPR] = useState<{ set: NewSet; previous: { weight: number; reps: number } } | null>(null);
+  const timer = useRestTimer();
 
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const latestFor = (exerciseId: string) =>
@@ -151,8 +154,15 @@ export function Logger({
       setSessionBests(new Map(sessionBests).set(exerciseId, { ...set, performedAt: new Date().toISOString() }));
     }
 
-    // Hit the target number of sets? Move on to the next planned exercise.
-    if (target && doneToday(exerciseId) + 1 >= target.targetSets) selectExercise(null);
+    // Hit the target number of sets? Move on to the next planned exercise, with no rest timer:
+    // the timer is for rest between sets, not between exercises (user's call).
+    const finishesExercise = !!target && doneToday(exerciseId) + 1 >= target.targetSets;
+    if (finishesExercise) selectExercise(null);
+    if (timer.enabled && !finishesExercise) {
+      timer.start(target ? (target.restSeconds ?? restForRange(target.repMin, target.repMax)) : recommendedRest(repsNum));
+    } else {
+      timer.stop();
+    }
   }
 
   // Deletes immediately (no confirmation slows you down) and offers undo instead.
@@ -338,6 +348,8 @@ export function Logger({
           <p className="-mt-2 text-center text-sm text-muted-foreground">Enter a weight and 1–100 reps to log.</p>
         )}
 
+        {timer.panel}
+
         {/* Plate red is reserved for PRs (TRACKER → Design system). Text stays in ink. */}
         {newPR && (
           <div role="status" className="flex items-center gap-3 rounded-lg border-2 border-plate-red bg-card p-3">
@@ -364,6 +376,8 @@ export function Logger({
             </Button>
           </div>
         )}
+
+        {timer.toggle}
       </section>
 
       <section aria-labelledby="today" className="flex flex-col gap-2">

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, Plus, Trash2, X } from "lucide-react";
+import { formatRest, REST_CHOICES, restForRange } from "@/lib/rest";
 import { ExerciseSelect } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
 import type { Routine, RoutineDay, RoutineExercise } from "@/lib/routines";
@@ -148,6 +149,32 @@ export function RoutineEditor({ routine, exercises }: { routine: Routine; exerci
                     <SmallNumber label={`${name} maximum reps`} value={row.repMax} onChange={(repMax) => editExercise(day.id, row.id, { repMax })} />
                     <span>reps</span>
                   </div>
+                  <label className="flex items-center gap-2 pl-1 text-muted-foreground">
+                    <span>Rest</span>
+                    <span className="relative">
+                      <select
+                        aria-label={`${name} rest between sets`}
+                        value={row.restSeconds ?? ""}
+                        onChange={(e) =>
+                          editExercise(day.id, row.id, {
+                            restSeconds: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        className="h-11 appearance-none rounded-lg border border-border bg-card pr-9 pl-3 text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <option value="">Recommended ({formatRest(restForRange(row.repMin, row.repMax))})</option>
+                        {REST_CHOICES.map((s) => (
+                          <option key={s} value={s}>
+                            {formatRest(s)}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        aria-hidden
+                        className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                      />
+                    </span>
+                  </label>
                 </li>
               );
             })}
@@ -163,7 +190,7 @@ export function RoutineEditor({ routine, exercises }: { routine: Routine; exerci
               onChange={(exerciseId) =>
                 editDay(day.id, (d) => ({
                   ...d,
-                  exercises: [...d.exercises, { id: crypto.randomUUID(), exerciseId, targetSets: 3, repMin: 8, repMax: 12 }],
+                  exercises: [...d.exercises, { id: crypto.randomUUID(), exerciseId, targetSets: 3, repMin: 8, repMax: 12, restSeconds: null }],
                 }))
               }
             />
