@@ -11,7 +11,7 @@ Running record of what's been built, what's been decided, and what broke. Writte
 | | |
 |---|---|
 | **Live** | https://gymbuddy-self-2e78.vercel.app (behind Vercel Authentication, see G5) |
-| **Deploys** | Push to `main` → Production. Any other branch → preview URL. Via the Vercel GitHub integration. |
+| **Deploys** | Push to `main` → Production. Any other branch → preview URL. Via the Vercel GitHub integration. Verified end to end with `38c1a48`. |
 | **Repo** | https://github.com/rohanrr25/gymbuddy (public) |
 | **Vercel** | project `gymbuddy`, team `self-2e78` |
 | **App** | Static placeholder page only. No DB, no API, no auth, no env vars. |
@@ -20,19 +20,21 @@ Running record of what's been built, what's been decided, and what broke. Writte
 
 ## Next up
 
-1. Settle the backend location (see Open decisions). This blocks step 2.
+1. Decide on offline logging (see Open decisions) before the logging screen is designed.
 2. Provision Postgres through the Vercel Marketplace, which injects `DATABASE_URL`. Run `vercel env pull` for local dev (needs the CLI logged in).
 3. Schema + basic CRUD: Exercise, Routine, Workout, Set.
 4. Tap-based set-logging screen. The v1 bar: fast enough to use between sets.
 5. Log real workouts for about 2 weeks before starting any AI work (v2).
+6. First `/graphify` run once there's real code (after step 4). `graphify-out/` is already gitignored.
 
 ## Open decisions
 
 | Decision | Options | Recommendation | Status |
 |---|---|---|---|
-| Where the backend lives | Next.js server actions / separate FastAPI / separate Go | **Next.js.** One repo, one deploy, one language, and it keeps effort on the frontend, which is the stated learning goal. Go only if Go practice is the point. | Asked 2026-09-21, awaiting answer |
+| Getting it on the iPhone | PWA (home-screen web app) / Capacitor wrapper / Expo (React Native) / SwiftUI | **PWA now**: a mobile-first layout plus a web manifest, so it's on the phone in v1 at no extra cost. **Native when HealthKit (v3) requires it**, since HealthKit has no web API; decide between Expo and Capacitor then. | User stated the goal 2026-09-21, approach not chosen |
 | PR storage | `is_pr` flag on Set **and** a derived PR table (original plan) / compute PRs from sets | **Compute from sets.** Two stored copies can drift. One query gives both the PR view and the flags. | Raised, not yet discussed |
-| Deployment Protection | Keep Vercel Authentication on / turn off | **Keep on** until the app has its own auth. It's currently the only access control on real workout data. | Recommended, not confirmed |
+| Deployment Protection | Keep Vercel Authentication on / turn off | **Keep on** until the app has its own auth. It's currently the only access control on real workout data. A native app can't get past this wall, so real auth becomes a prerequisite for going native. | Recommended, not confirmed |
+| Offline logging | Online-only / write locally first, then sync | Not decided. Gyms often have poor signal, and the v1 bar is speed mid-workout. Decide before building the logging screen. | Raised 2026-09-21 |
 
 ## Decisions made
 
@@ -43,6 +45,8 @@ Running record of what's been built, what's been decided, and what broke. Writte
 | 2026-09-21 | shadcn base = **Base UI** (not Radix), preset **Nova** | Base UI is shadcn's current recommended default. Nova uses Geist + Lucide, matching the Next scaffold. Swappable later. |
 | 2026-09-21 | Push-to-deploy via the Vercel GitHub integration | User asked for it. Set up in the Vercel dashboard, not the CLI. |
 | 2026-09-21 | Repo is public | User created it that way. Consequence: secrets only ever go in Vercel env vars. |
+| 2026-09-21 | **Backend is Next.js**, not FastAPI or Go | The user asked whether FastAPI suits AI better. It doesn't here: the roadmap *calls* Claude over HTTPS rather than running models, and the TS SDK covers that. The iPhone goal needs an API, not Python. **Rule:** data logic lives in plain TS modules (e.g. `lib/`), never inside components or server actions, so JSON route handlers can expose it to a native app later. Python can be added as a separate Vercel function if v3 needs data science. |
+| 2026-09-21 | Project skills: **ponytail** and **graphify** | User asked for them. Installed in project scope (`.claude/skills/`, pinned in `skills-lock.json`) so ponytail's always-on mode doesn't affect other projects. Checked before installing: both repos are well established (MIT / Apache-2.0), and graphify's PyPI package really is named `graphifyy` (from its own `pyproject.toml`), not a lookalike. |
 
 ---
 
@@ -91,6 +95,7 @@ Process mistakes to avoid repeating, not code bugs.
 - **When the user is weighing an approach, discuss before running commands.** The user interrupted a `node -v` because they wanted to talk through Node vs Next first. They like to understand *why* before *what*, especially on frontend choices (frontend is their learning area; their day job is Java/Go/Python).
 - **Interactive auth is the user's job.** `gh auth login` and `vercel login` need a browser. Hand them over as `!<command>` and get everything else ready around them.
 - **No foreground `sleep` in this harness.** To wait for a local server: `curl --retry 15 --retry-connrefused --retry-delay 1`.
+- **Quote URLs containing `?` in zsh.** `gh api repos/x/y/git/trees/HEAD?recursive=1` failed with `no matches found` because zsh treats an unquoted `?` as a glob.
 - **Record the unconfirmed as unconfirmed.** A recommendation the user hasn't answered stays in Open decisions, not Decisions made.
 
 ---
@@ -107,7 +112,7 @@ Newest first. When this passes about 10 entries, move the oldest into `docs/trac
 - Verified: `npm run build` is clean, and `npm run start` + curl returned HTTP 200 with the page content.
 - Committed `1c36a1e`. Installed gh via Homebrew and the Vercel CLI via npm.
 - Pushed to the user-created public repo (G3). The user connected Vercel in the dashboard, and the GitHub deployments API shows a successful Production deploy of `1c36a1e`.
-- Created this tracker and the `CLAUDE.md` rules that keep it updated.
+- Created this tracker and the `CLAUDE.md` rules that keep it updated. Pushed as `38c1a48`, which auto-deployed to Production: the first push-triggered deploy, so the loop is confirmed.
 
 **Problems hit:** G1, G2, G3, G4, G5, G6.
 

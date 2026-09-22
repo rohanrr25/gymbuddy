@@ -13,3 +13,8 @@ Update it **during** the work, not only at the end:
 - **End of session** → add a *Session log* entry (Done / Problems hit / Left open) and refresh *Current state* and *Next up*.
 
 Keep the top sections describing the present; history goes in the log. The repo is public: never write secrets, tokens, or connection strings into the tracker.
+
+## Skills
+
+- **ponytail** governs what gets built: take the simplest thing that works. One standing exception to its terse-output rule: the user is using this project to learn frontend (React, Next.js, Tailwind, shadcn). Explaining *why* on frontend and architecture choices counts as explicitly requested, so give it in full. Ponytail still applies to the code itself.
+- **graphify:** once `graphify-out/` exists, use it for questions about how the codebase fits together. `graphify-out/` is gitignored and must never be committed.
