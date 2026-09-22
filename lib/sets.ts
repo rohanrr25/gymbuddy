@@ -1,11 +1,12 @@
 import "server-only";
 import { auth } from "@clerk/nextjs/server";
 import { pool } from "@/lib/db";
+import { isMuscleGroup } from "@/lib/muscle-groups";
 
 // Data access layer for logging. Every function checks who's asking and only
 // touches that user's rows. proxy.ts is just the front door (TRACKER decisions).
 
-export type Exercise = { id: string; name: string; muscleGroup: string };
+export type Exercise = { id: string; name: string; muscleGroup: string; custom?: boolean };
 export type LoggedSet = {
   id: string;
   exerciseId: string;
@@ -24,12 +25,40 @@ async function requireUserId() {
   return userId;
 }
 
+// Built-in exercises (user_id null) plus your own.
 export async function listExercises(): Promise<Exercise[]> {
-  await requireUserId();
+  const userId = await requireUserId();
   const { rows } = await pool.query(
-    "select id, name, muscle_group from exercises order by muscle_group, name",
+    `select id, name, muscle_group, user_id is not null as custom from exercises
+     where user_id is null or user_id = $1
+     order by muscle_group, name`,
+    [userId],
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, muscleGroup: r.muscle_group }));
+  return rows.map((r) => ({ id: r.id, name: r.name, muscleGroup: r.muscle_group, custom: r.custom }));
+}
+
+// Adds an exercise private to you, or returns the existing one with that name.
+export async function addExercise(name: string, muscleGroup: string): Promise<string> {
+  const userId = await requireUserId();
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  if (trimmed.length < 1 || trimmed.length > 60) throw new Error("Name must be 1–60 characters");
+  if (!isMuscleGroup(muscleGroup)) throw new Error("Unknown muscle group");
+
+  const inserted = await pool.query(
+    `insert into exercises (name, muscle_group, user_id) values ($1, $2, $3)
+     on conflict do nothing returning id`,
+    [trimmed, muscleGroup, userId],
+  );
+  if (inserted.rows[0]) return inserted.rows[0].id;
+
+  // Same name as a built-in or one of yours: use that one instead of a duplicate.
+  const existing = await pool.query(
+    `select id from exercises where lower(name) = lower($1) and (user_id is null or user_id = $2)
+     order by user_id nulls last limit 1`,
+    [trimmed, userId],
+  );
+  if (!existing.rows[0]) throw new Error("Couldn’t add that exercise");
+  return existing.rows[0].id;
 }
 
 // Recent enough to cover "today" in any timezone; the client picks out its own today.

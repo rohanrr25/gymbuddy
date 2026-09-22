@@ -13,7 +13,7 @@ import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
-import { completeWorkoutAction, deleteSetAction, logSetAction } from "./actions";
+import { addExerciseAction, completeWorkoutAction, deleteSetAction, logSetAction } from "./actions";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
 type SetRow = LoggedSet & { pending?: boolean };
@@ -323,7 +323,13 @@ export function Logger({
       <section aria-label="Set" className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
           <span className="text-sm text-muted-foreground">Exercise</span>
-          <ExerciseSelect exercises={exercises} value={exerciseId} onChange={selectExercise} label="Exercise" />
+          <ExerciseSelect
+            exercises={exercises}
+            value={exerciseId}
+            onChange={selectExercise}
+            onCreate={addExerciseAction}
+            label="Exercise"
+          />
         </label>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">

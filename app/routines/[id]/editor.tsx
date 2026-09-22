@@ -7,6 +7,7 @@ import { ExerciseSelect } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
 import type { Routine, RoutineDay, RoutineExercise } from "@/lib/routines";
 import type { Exercise } from "@/lib/sets";
+import { addExerciseAction } from "@/app/actions";
 import { deleteRoutineAction, saveRoutineAction, setActiveRoutineAction } from "../actions";
 
 // The whole routine is edited locally and saved in one go. Kept rows keep their IDs.
@@ -125,6 +126,7 @@ export function RoutineEditor({ routine, exercises }: { routine: Routine; exerci
                       <ExerciseSelect
                         size="md"
                         label="Exercise"
+                        onCreate={addExerciseAction}
                         exercises={exercises}
                         value={row.exerciseId}
                         onChange={(exerciseId) => editExercise(day.id, row.id, { exerciseId })}
@@ -185,6 +187,7 @@ export function RoutineEditor({ routine, exercises }: { routine: Routine; exerci
               size="md"
               label={`Add exercise to ${day.name || `day ${dayIndex + 1}`}`}
               placeholder="Add exercise…"
+              onCreate={addExerciseAction}
               exercises={exercises}
               value=""
               onChange={(exerciseId) =>

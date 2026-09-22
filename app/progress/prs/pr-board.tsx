@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { ManualPR, PR } from "@/lib/prs";
 import type { Exercise } from "@/lib/sets";
 import { cn } from "@/lib/utils";
+import { addExerciseAction } from "@/app/actions";
 import { addPRAction, deletePRAction } from "./actions";
 
 const noSubscribe = () => () => {};
@@ -114,6 +115,7 @@ function AddPR({ exercises, isClient }: { exercises: Exercise[]; isClient: boole
       <ExerciseSelect
         size="md"
         label="Exercise"
+        onCreate={addExerciseAction}
         placeholder="Choose exercise…"
         exercises={exercises}
         value={exerciseId}

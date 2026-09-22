@@ -19,6 +19,30 @@ A gym buddy, not just a tracker: something that **keeps you honest and pushes yo
 - **Safe to defer:** health stats (Apple Health keeps history, so v3 can backfill) and goals (a small table, addable any time).
 - "Keeps you honest" implies notifications. Web push works on iPhone for home-screen web apps.
 
+## Direction (2026-09-22): the gym's Strava, and the road to a real app
+
+The user asked to compare GymBuddy with Strava and to start thinking about a native app.
+
+**What makes Strava work, and the gym equivalent**
+
+| Strava | Why it works | Gym equivalent |
+|---|---|---|
+| GPS records the run | zero capture effort | Our weak spot: lifting is typed by hand. **Logging friction is the real competitor.** An Apple Watch app (log a set from the wrist) is the closest thing to "press start". |
+| Segments | a comparable unit anyone can contest | A lift at a rep count ("bench for 5") is already a segment. **Bodyweight-relative** strength makes it fair across sizes. |
+| Kudos / feed | cheap social reward right after the effort | A shareable session card: what you trained, volume, PRs. Friends react. |
+| Clubs & challenges | belonging, a reason to return | Monthly volume or consistency challenges among friends. |
+| Relative Effort | "was that hard *for me*?" | Effort per set (feature 9) + rep ranges gives this with no hardware. |
+
+**Where gym differs, and what it costs us:** runs are GPS-verified, gym numbers are typed and trivial to inflate, so any leaderboard should be **friends-first and bodyweight-relative**, never a global ranking of raw weight. Sessions are long and interrupted, so speed beats beauty on the logging screen.
+
+**Consequence for the plan:** social is worth real work only once logging is effortless and histories are rich. Keep it parked; keep paying down friction (a bigger exercise library, a searchable picker, the calendar, the push).
+
+**Road to a native app** (the user wants an app, not a website; the web app is "temporary")
+- Nothing needs rewriting if the rules hold: data logic stays in `lib/` (no UI imports), auth is Clerk (it has an Expo SDK), and anything the phone needs is reachable through JSON route handlers.
+- Likely path: **Expo (React Native)**, sharing TypeScript types and the `lib/` rules with this codebase; the screens get rebuilt (React Native has no DOM), which is fine because they're small.
+- What only native (or an installed PWA) can do, and why it matters here: **notifications** (rest timer alerts while the phone is locked, "you haven't trained since Tuesday"), **HealthKit** (v3 sleep/recovery), **Apple Watch** (the biggest friction win), background sync.
+- Cheap next step in that direction: the home-screen install (feature 10) gets an icon, full-screen, and web push on iOS, without a rewrite.
+
 ---
 
 ## Current state
@@ -66,25 +90,33 @@ Status: ⬜ not started · 🟡 in progress · ✅ done (with the commit)
 | 5 | Gym flow | Home shows the active routine's **next day by rotation** (the day after the last one trained; overridable) with its exercises ready to log in the weight × reps logger. Free logging of any exercise stays available. | ✅ `690aed6` + `7721622` (Complete workout). Migrations 003–004, `getActivePlan()` and `completeWorkout()` in `lib/routines.ts`, day tagging and an ownership check in `lib/sets.ts`, `lib/rotation.ts` (+ `npm run check`, 10/10), and the plan section in `app/logger.tsx`. SQL tested with throwaway users (9/9, cleaned up). Verified by the user on their phone: "complete works and the next step shows up." DB shows 1 completed workout and 3 day-tagged sets. |
 | 6 | Progress | Per exercise: a graph over time with a toggle between **heaviest set per session** and **total volume** (weight × reps summed), plus past sets. Replaces the old "exercise history" feature. | 🟡 Built: `/progress?exercise=…` (`app/progress/`), `listLoggedExerciseIds` and `listSetsForExercise` in `lib/sets.ts`, and `lib/progress.ts` (session grouping + axis ticks, with `lib/progress.check.ts` in `npm run check`). Hand-drawn SVG, no chart library. Visually checked at 375 px with fake data (header at 320–390 px) in headless Chrome. **Not yet verified:** with the user's real data on their phone. |
 | 7 | PRs | Per-exercise best, computed from sets, plus manually entered PRs (the better one wins) | 🟡 Built: migration `005_manual_prs.sql`, `lib/prs.ts`, a Charts/PRs tab row on Progress, `/progress/prs` (PR list, add a PR, delete an entered one), and a "New PR" banner in the logger (plate red). The PR rule is `beats()` in `lib/progress.ts` (in `npm run check`). SQL tested with throwaway users (5/5, cleaned up). PRs page visually checked at 375 px; fixed a clipped date field and a doubled divider. **Not yet verified:** on the user's phone. |
+| 8 | Exercise library | ~80 common lifts across barbell, dumbbell, machine, cable and bodyweight, covering every muscle group, **plus your own** (private to you). The picker becomes **searchable** — a wheel of 80 is worse than today's 17. | 🟡 Built: migration `007_exercise_library.sql` (**90 exercises**, 6 groups incl. the new **Core**), `exercises.user_id` (null = built-in), `addExercise` + scoped `listExercises` in `lib/sets.ts`, `lib/muscle-groups.ts`, and a rewritten `components/exercise-select.tsx`: a search sheet built on `<dialog>`. SQL tested with throwaway users (9/9, cleaned up). Sheet checked visually; moved initial focus off the search box so the keyboard doesn't cover the list. **Not yet verified:** on the user's phone. |
+| 9 | Calendar | A month grid marking days you trained, coloured by routine day. Tap a day to see its sets, **change which workout it was or mark it freestyle**, and delete a mistaken session. Fixing a wrong day also fixes the rotation. | ⬜ |
+| 10 | First-run screen | For a signed-in user with nothing yet: what to do first, straight into creating a routine. **No public landing page** — the user: "the webpage is just temporary. I only care about the app once we get there." | ⬜ |
 | 7b | Rest timer | Rest between sets: set per exercise in the routine, or recommended from the rep range when not set. Optional (on/off). User request 2026-09-21. | 🟡 Built: migration `006_rest_seconds.sql`, `lib/rest.ts` (+ check), a rest dropdown per exercise in the routine editor, `components/rest-timer.tsx`, and wiring in the logger. Save SQL re-tested (4/4). Timer states checked visually at 375 px. **Not yet verified:** on the user's phone (the beep in particular). |
 
 ### Next: after the beta has been used for real
 
 | # | Feature | Note |
 |---|---|---|
-| 8 | The push | Rule-based "add weight" suggestion (double progression) from last session against the routine's rep range. The core gym-buddy feature. |
-| 9 | Effort per set | Optional one tap (easy / on target / hard). Can't be backfilled, so it's first in line after the core. |
-| 10 | Home-screen install | Web app manifest + icon so it runs full-screen on the iPhone |
+| 11 | The push | Rule-based "add weight" suggestion (double progression) from last session against the routine's rep range. The core gym-buddy feature. Needs a few weeks of logged data to be worth anything. |
+| 12 | Effort per set | Optional one tap (easy / on target / hard). Can't be backfilled, so it's first in line after the core. Also the raw material for a "was that hard for me?" score (see Direction). |
+| 13 | Home-screen install | Web app manifest + icon so it runs full-screen on the iPhone. Unlocks web push: rest-timer alerts while locked, and "you haven't trained since Tuesday". |
+| 14 | UI/UX polish pass | One dedicated pass once the calendar and first-run screen land and the app's shape is settled. Until then, every feature gets the usual `web-design-guidelines` review (standing rule, not a milestone). |
 
 ### Later: parked, don't build yet
 
-Custom exercises (add your own) · editing a logged set · Goals (bulk/cut, targets, timeline) · bodyweight tracking · reminders and notifications · AI program generation and chat (v2) · Apple Health and other health data (v3) · native iPhone app · public release work (own domain, Clerk production instance (G11), signup polish, Clerk shadcn theme, privacy policy, Sign in with Apple for the App Store) · offline sync · first `/graphify` run (once there's real code)
+**Social (the Strava layer)** — friends, a session feed with kudos, shareable session cards, bodyweight-relative and friends-first leaderboards, challenges. A project, not a feature: profiles, follows, privacy settings, sharing, moderation if anything goes public, plus a data-model change. Worth nothing until logging is effortless and histories are rich (see Direction). User: "we don't have to worry about this for now."
+
+**Native app** — Expo (React Native) sharing `lib/` and types; needed for notifications while locked, HealthKit, and an **Apple Watch** app (the biggest friction win, the closest thing we have to Strava's "press start"). See Direction.
+
+Editing a logged set · Goals (bulk/cut, targets, timeline) · bodyweight tracking · AI program generation and chat (v2) · Apple Health and other health data (v3) · public release work (own domain, Clerk production instance (G11), a public landing page, signup polish, Clerk shadcn theme, privacy policy, Sign in with Apple for the App Store) · offline sync · first `/graphify` run
 
 ## Open decisions
 
 | Decision | Options | Recommendation | Status |
 |---|---|---|---|
-| Getting it on the iPhone | PWA (home-screen web app) / Capacitor wrapper / Expo (React Native) / SwiftUI | **PWA now**: a mobile-first layout plus a web manifest, so it's on the phone in v1 at no extra cost. **Native when HealthKit (v3) requires it**, since HealthKit has no web API; decide between Expo and Capacitor then. | User stated the goal 2026-09-21, approach not chosen |
+| Getting it on the iPhone | Installed PWA now / Expo (React Native) later / Capacitor / SwiftUI | **Installed PWA now** (feature 13), **Expo when notifications, HealthKit or a Watch app justify it**. The user considers the website temporary and wants an app. Nothing needs rewriting if `lib/` stays UI-free — see Direction. | User restated the goal 2026-09-22; the native framework is still unchosen |
 
 ## Decisions made
 
@@ -104,6 +136,8 @@ Custom exercises (add your own) · editing a logged set · Goals (bulk/cut, targ
 | 2026-09-21 | **Rule: `proxy.ts` is only the front door** | Next.js 16's docs say proxy "should not be used as a full session management or authorization solution." So every data function (server action, route handler, query) calls `await auth()` itself and scopes by `userId`. Server actions are public POST endpoints. |
 | 2026-09-21 | **Weights are pounds** | The user lifts in lb. Stored as a plain number, documented as pounds. When kg users arrive (release), add a `unit` column defaulting to `'lb'`; every existing row is known to be lb, so that migration is safe. Steppers move ±5 lb. |
 | 2026-09-21 | **Exercises: a ready-made list to select from** | User: "there should be a ready made list of common exercises that we can just select from." A shared, seeded list with no per-user exercises. Custom exercises parked in Later. |
+| 2026-09-22 | **Exercise picker is a search sheet, not a wheel** | 90 exercises don't fit a native `<select>`. The picker is now a trigger button plus a `<dialog>` sheet with search, muscle-group sections and plate dots. `<dialog>` + `showModal()` gives focus trapping, Escape and an inert background with no library and no focus-trap code. Search matches every word, so "in db press" finds "Incline Dumbbell Press". Initial focus is the sheet, not the search box (an iPhone keyboard would cover the list). **Custom exercises:** `exercises.user_id` (null = built-in, shared), unique per owner on `lower(name)` with `NULLS NOT DISTINCT`; adding a name that already exists returns the existing exercise rather than a duplicate. Custom ones are marked "Yours" and are invisible to other users. Not offered in the Progress picker, which lists only exercises you've logged. |
+| 2026-09-22 | **Next three: exercise library → calendar → first-run screen** | User asked for a calendar, an easy way to switch the day, freestyle days, a "clean welcome page", a bigger exercise list, social (later), and better UI/UX. Ordered so each helps the next: the **library** first because it's the cheapest fix and forces a **searchable picker** (a UX win on the most-used screen); the **calendar** next (it absorbs "easy way to switch" and "freestyle for the day" alongside the existing day dropdown); then the **first-run screen**. Answers: ~80 lifts **plus custom** exercises; calendar can **view and fix** past days; welcome means the **in-app first run**, not a public landing page. UI/UX is a **standing rule** (every feature gets the design review) plus one polish pass (feature 14) once the shape settles. Social is parked with notes (see Later + Direction). |
 | 2026-09-21 | **Rest timer** | User: "include a rest time between sets and exercises… user set in the routine or based on our recommendations." Answers: recommendation **from the rep range** (midpoint ≤5 → 3:00, 6–12 → 2:00, 13+ → 1:00); **no timer between exercises** ("not sure we should have timer between exercises"), so the set that completes an exercise's target starts no timer; **timer optional** (an on/off toggle on the logger, stored per phone in localStorage); **starts automatically** on Log set; **beep + screen change** when rest is over. It then counts time over, in a green state. Off-plan sets use the recommendation for the reps just done. **iOS constraints:** the beep is scheduled at the Log-set tap (iOS only plays audio a tap set up) and is silent with the ringer off. The countdown is timestamp-based, so it's correct after locking the phone, but there's no alert while the page is in the background (that needs push, which comes with feature 10). iPhones can't vibrate from the web. |
 | 2026-09-21 | **PRs: definition and placement** | User: "also have a pr option." Built on the earlier decision (manual entries plus computed from sets, the better one wins). **A PR = heaviest weight; at equal weight, more reps; an exact tie keeps the earliest.** One rule, `beats()`, is used everywhere: session top sets, the PR list SQL, and the logger alert. Per-rep-count PRs or an estimated 1RM could come later. PRs live in a **Charts / PRs tab** on Progress (links, each with a URL), because a 4th header link doesn't fit a 360 px phone. The "New PR" alert fires only when you had a best *before* this screen, so a first-ever session doesn't cheer every warm-up; a second PR in the same session is still caught. Deleting the PR set clears its alert. Plate red is used here for the first time (the border and trophy icon; the text stays in ink). |
 | 2026-09-21 | **How the Progress chart is built** | Following the dataviz skill. **One line, one axis:** a toggle switches between heaviest set and total volume; they never share an axis. A session is one local calendar day of that exercise. The x-axis uses real dates, so gaps show missed weeks. Line in plate blue (validator: all checks pass on chalk). 2px line, 8px dots with a 2px background ring (hidden past 20 sessions), a 10% area wash, solid hairline grid, round ticks, and only the latest value labelled. **The readout at the top is the tooltip:** scrubbing (drag or arrow keys) updates the big number, because on a phone a tooltip would sit under your finger. The Sessions list is the table view, so no value is chart-only. With one session it shows the number and "log another session", with no one-dot line. No chart library: an SVG this simple costs less than a dependency. The chosen exercise is in the URL. The picker lists only exercises you've logged. |
@@ -187,6 +221,11 @@ Problems that took more than one attempt. Check here before debugging.
 - **Fix:** use a 500 px window and pin the content under test to a phone width (`style={{ width: 375 }}` plus a dashed edge line) in a throwaway preview route.
 - **How to preview a signed-in page:** a temporary `app/zz-preview/` page with fake data, plus a temporary `proxy.ts` bypass for that path. Back up `proxy.ts` first, delete both afterwards, and confirm with `git diff --quiet proxy.ts` and a grep for `zz-preview|TEMPORARY`. Never commit them.
 - **Then `rm -rf .next/dev`.** `next dev` writes route types there, and `tsconfig` includes them, so the next `npm run build` fails with `Cannot find module '../../../app/zz-preview/page.js'`. Vercel builds from scratch and is unaffected; it's local only.
+
+### G14 — A pushed commit can get no deployment at all
+- **Symptom:** the deploy watcher for `14c98ba` reported `no deployment found` after ~10 min.
+- **Cause:** a newer commit (`eaccf09`) was pushed minutes later and Vercel only deployed that one.
+- **Not a failure if the newer commit contains it:** check `git merge-base --is-ancestor <old> <new>`, and that the newest deployment is `success`. If the skipped commit was the *latest*, investigate (look at `vercel ls` and the integration's settings).
 
 ---
 
