@@ -1,7 +1,8 @@
 "use client";
 
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
+import { ExerciseSelect, PLATE } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
@@ -9,15 +10,6 @@ import { deleteSetAction, logSetAction } from "./actions";
 
 type SetRow = LoggedSet & { pending?: boolean };
 type Change = { type: "add"; set: SetRow } | { type: "remove"; id: string };
-
-// Bumper-plate colours per muscle group. Red is kept back for PRs.
-const PLATE: Record<string, string> = {
-  Chest: "bg-plate-blue",
-  Back: "bg-plate-green",
-  Legs: "bg-plate-yellow",
-  Shoulders: "bg-card ring-1 ring-foreground/30",
-  Arms: "bg-foreground",
-};
 
 const noSubscribe = () => () => {};
 
@@ -105,51 +97,15 @@ export function Logger({
   const undoDelete = (set: LoggedSet) =>
     save({ id: set.id, exerciseId: set.exerciseId, weight: set.weight, reps: set.reps, performedAt: set.performedAt });
 
-  const groups: [string, Exercise[]][] = [];
-  for (const e of exercises) {
-    const last = groups.at(-1);
-    if (last?.[0] === e.muscleGroup) last[1].push(e);
-    else groups.push([e.muscleGroup, [e]]);
-  }
-
   const todayKey = isClient ? new Date().toDateString() : null;
   const today = todayKey ? sets.filter((s) => new Date(s.performedAt).toDateString() === todayKey) : [];
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-8 px-4 pt-4 pb-12">
       <h1 className="sr-only">Log a set</h1>
-      {/* Native select: on iPhone it opens the system wheel picker, grouped by muscle. */}
       <label className="flex flex-col gap-1.5">
         <span className="text-sm text-muted-foreground">Exercise</span>
-        <span className="relative">
-          <span
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute top-1/2 left-4 size-3 -translate-y-1/2 rounded-full",
-              PLATE[byId.get(exerciseId)?.muscleGroup ?? ""],
-            )}
-          />
-          <select
-            name="exercise"
-            value={exerciseId}
-            onChange={(e) => selectExercise(e.target.value)}
-            className="h-14 w-full appearance-none rounded-xl border border-border bg-card pr-11 pl-11 text-lg font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {groups.map(([group, list]) => (
-              <optgroup key={group} label={group}>
-                {list.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <ChevronDown
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-muted-foreground"
-          />
-        </span>
+        <ExerciseSelect exercises={exercises} value={exerciseId} onChange={selectExercise} label="Exercise" />
       </label>
 
       <section aria-label="Set" className="flex flex-col gap-4">

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import { ClerkProvider, UserButton } from "@clerk/nextjs";
 import { Barlow, Barlow_Condensed, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -39,10 +40,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ClerkProvider>
-          <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 pt-4">
-            <span translate="no" className="font-display text-xl font-bold tracking-tight">
+          <header className="mx-auto flex w-full max-w-md items-center gap-1 px-4 pt-4">
+            <Link href="/" translate="no" className="mr-auto font-display text-xl font-bold tracking-tight">
               GymBuddy
-            </span>
+            </Link>
+            <nav aria-label="Main" className="flex items-center">
+              <Link href="/" className="flex h-11 items-center rounded-lg px-3 hover:bg-muted">
+                Log
+              </Link>
+              <Link href="/routines" className="flex h-11 items-center rounded-lg px-3 hover:bg-muted">
+                Routines
+              </Link>
+            </nav>
             <UserButton />
           </header>
           {children}
