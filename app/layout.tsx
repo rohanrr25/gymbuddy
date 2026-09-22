@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { ClerkProvider, UserButton } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Barlow, Barlow_Condensed, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -41,15 +40,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${barlow.variable} ${barlowCondensed.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body className="flex min-h-full flex-col bg-background pt-[env(safe-area-inset-top)] text-foreground">
         <ClerkProvider>
-          {/* Navigation lives in the bottom tab bar (app/(app)/tab-bar.tsx). */}
-          <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 pt-4">
-            <Link href="/" translate="no" className="truncate font-display text-lg font-bold tracking-tight">
-              GymBuddy
-            </Link>
-            <UserButton />
-          </header>
           {children}
         </ClerkProvider>
       </body>

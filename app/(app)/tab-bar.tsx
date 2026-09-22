@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Dumbbell, House, TrendingUp } from "lucide-react";
+import { CalendarDays, Dumbbell, House, Settings, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Bottom tabs: thumb-reachable mid-workout, and it leaves room for a "Coach" tab
-// when the AI lands (5 fits; 6 would be too many).
+// Bottom tabs: thumb-reachable mid-workout. Five is the ceiling — when the Coach (AI) tab
+// lands, something here has to give rather than becoming a sixth.
 const TABS = [
   { href: "/", label: "Home", icon: House },
   { href: "/log", label: "Log", icon: Dumbbell },
   { href: "/routines", label: "Routines", icon: CalendarDays },
   { href: "/progress", label: "Progress", icon: TrendingUp },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function TabBar() {

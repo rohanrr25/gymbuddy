@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ChevronRight, Flame, Settings } from "lucide-react";
+import { ChevronRight, Flame } from "lucide-react";
 import { PLATE } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
 import type { Weighing } from "@/lib/bodyweight";
@@ -49,18 +49,9 @@ export function Home({
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 pt-4 pb-28">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="truncate font-display text-3xl font-bold">{profile.displayName}</h1>
-        </div>
-        <Link
-          href="/settings"
-          aria-label="Settings"
-          className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <Settings aria-hidden className="size-5" />
-        </Link>
+      <div className="min-w-0">
+        <p className="text-sm text-muted-foreground">Welcome back</p>
+        <h1 className="truncate font-display text-3xl font-bold">{profile.displayName}</h1>
       </div>
 
       {/* Today's workout: the one thing you came here to start. */}
