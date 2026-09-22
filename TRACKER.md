@@ -117,6 +117,12 @@ Status: ⬜ not started · 🟡 in progress · ✅ done (with the commit)
 
 **Social (the Strava layer)** — friends, a session feed with kudos, shareable session cards, bodyweight-relative and friends-first leaderboards, challenges. A project, not a feature: profiles, follows, privacy settings, sharing, moderation if anything goes public, plus a data-model change. Worth nothing until logging is effortless and histories are rich (see Direction). User: "we don't have to worry about this for now."
 
+**How-to demos per exercise** — user's idea: "easy links on how-tos for each selection in the exercises — maybe animations, or links to TikTok/Instagram/YouTube based on user choice." Three ways to do it, cheapest first:
+1. **Deep-link to a search** on the platform you prefer (a setting: YouTube / TikTok / Instagram), e.g. a "How to" link next to the exercise that opens a search for "<exercise> form". Near-zero work, no licensing, and it covers **custom exercises** too, since it's built from the name. Quality varies because we don't pick the video.
+2. **A curated link per built-in exercise** — one good video chosen for each of the 90. Better quality, but it's 90 links to find, and they rot when videos are taken down. Worth it only for the common lifts, with the search fallback for the rest.
+3. **Animations** (looping clips or diagrams) — the nicest experience and by far the most expensive: either licensed assets or ones we make, ~90 of them, plus hosting. Only if this becomes a selling point.
+**Recommendation:** ship 1, add 2 for the top ~20 lifts if it proves useful. Note embedding TikTok or Instagram content in-app has terms-of-service constraints, whereas linking out does not.
+
 **Native app** — Expo (React Native) sharing `lib/` and types; needed for notifications while locked, HealthKit, and an **Apple Watch** app (the biggest friction win, the closest thing we have to Strava's "press start"). See Direction.
 
 Editing a logged set · Goals (bulk/cut, targets, timeline) · bodyweight tracking · AI program generation and chat (v2) · Apple Health and other health data (v3) · public release work (own domain, Clerk production instance (G11), **replace the Berserk app icon — someone else's IP**, a public landing page, signup polish, Clerk shadcn theme, privacy policy, Sign in with Apple for the App Store) · offline sync · first `/graphify` run
@@ -139,6 +145,7 @@ Loose ideas land here so nothing is lost and the Features list stays ordered (th
 | AI chat that builds routines and pushes you | 2026-09-22 | v2. Scaffolding now: a **Coach tab slot** in the bottom bar, a place on Home for its message, and every write already behind one `lib/` function an agent can call |
 | Nicer UI and UX | 2026-09-22 | Standing rule (design review on every feature) + feature 14 |
 | Make it a real app | 2026-09-22 | Criteria in Direction; feature 13 is the cheap first step |
+| How-to demos per exercise (animations, or TikTok/Instagram/YouTube links) | 2026-09-22 | **Later**, with notes below |
 
 ## Open decisions
 
