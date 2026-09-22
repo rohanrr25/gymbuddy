@@ -29,7 +29,7 @@ A gym buddy, not just a tracker: something that **keeps you honest and pushes yo
 | **Deploys** | Push to `main` → Production. Any other branch → preview URL. Via the Vercel GitHub integration. Verified end to end with `38c1a48`. |
 | **Repo** | https://github.com/rohanrr25/gymbuddy (public) |
 | **Vercel** | project `gymbuddy`, team `self-2e78` |
-| **App** | Placeholder page behind sign-in. No routes or UI touch the DB yet. |
+| **App** | Logging screen behind sign-in (feature 3): exercise dropdown, weight × reps, today's sets with undo. |
 | **Auth** | Clerk (`gymbuddy-auth`, free Hobby plan, a **development** instance on `*.accounts.dev`, see G11). `proxy.ts` sends every signed-out request to Clerk's hosted sign-in page. `<ClerkProvider>` sits inside `<body>` in `app/layout.tsx`, with a `<UserButton />` header. Keys: `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, set for all environments. SDK `@clerk/nextjs` v7 (Core 3). |
 | **Database** | Neon Postgres 18.6 (`gymbuddy-db`, free plan, `iad1`, same region as the functions). Connection string in `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct, for migrations). Set for Production, Preview, and Development; local copy in `.env.local`. Driver: `pg` (G8), SSL pinned to `verify-full` in code (G9). **Schema:** `exercises` (17 seeded), `sets`, `schema_migrations`. Migrations are plain SQL in `db/migrations/`, applied in order by `npm run db:migrate` (`scripts/migrate.mjs`, direct connection, one transaction each). **Caveat:** production, preview, and local dev all share this one database, so local testing writes to real data. Fine for a one-person beta; use a Neon branch for dev before others join. |
 | **Stack** | Next.js 16.3.5 (App Router, Turbopack) · React 19.2.8 · TypeScript 5 · Tailwind v4 · shadcn/ui 4.21 (Base UI, Nova preset, Lucide) |
@@ -61,7 +61,7 @@ Status: ⬜ not started · 🟡 in progress · ✅ done (with the commit)
 | 0 | Deployable app | Live URL, push-to-deploy | ✅ `38c1a48` |
 | 1 | Database | Neon Postgres provisioned, `DATABASE_URL` in the project and in `.env.local` | ✅ Neon free plan, `iad1`, Postgres 18.6, Neon Auth off. Test query passed 2026-09-21. |
 | 2 | Sign in | Only signed-in users reach the app. Needed first because production is public. (Scoping data by `user_id` happens in feature 3, where the data is.) | ✅ `2a0818a`. Verified on production: a signed-out browser gets a 307 into Clerk's sign-in, and no app content is served. The user signed in on their iPhone with Google on 2026-09-21 and landed on the app. They're the first beta account. |
-| 3 | Log a set | Pick an exercise, enter weight × reps, save; see today's sets. Fast, tap-based, usable on the phone. | 🟡 Built: `lib/db.ts` (pool), `lib/sets.ts` (data layer: auth check + user scoping), `app/actions.ts`, `app/page.tsx`, `app/logger.tsx`. Build and lint clean. SQL verified against the real DB with a throwaway user (idempotent retry, scoping, constraints, undo restore) and cleaned up. **Not yet verified:** the screen itself. Clerk blocks automated sign-in, so the first real test is the user logging a set on their phone. |
+| 3 | Log a set | Pick an exercise, enter weight × reps, save; see today's sets. Fast, tap-based, usable on the phone. | ✅ `0f42a30` + `d6f2363` (dropdown). Verified end to end: the user logged sets on their iPhone and they're in the DB (3 sets, 1 user, no test rows left). User: "looks good for now." |
 | 4 | Exercise history | Past sets for one exercise, newest first | ⬜ |
 | 5 | PRs | Per-exercise best, computed from sets, plus manually entered PRs (the better one wins) | ⬜ |
 
@@ -194,6 +194,19 @@ Process mistakes to avoid repeating, not code bugs.
 ## Session log
 
 Newest first. When this passes about 10 entries, move the oldest into `docs/tracker-archive.md` so this file stays cheap to load.
+
+### 2026-09-21 — Session 1 (continued): vision → database → sign-in → logging
+**Done**
+- Settled the stack and product direction with the user: Next.js backend (not FastAPI/Go); iPhone as a home-screen web app first, native at v3; multi-user product with the user as first beta tester; the "gym buddy that pushes you" vision (top of this file).
+- Switched to step-by-step, bare-essentials delivery with a Features list (user request).
+- Installed skills, all read before installing, all project-scoped: ponytail, graphify, frontend-design, web-design-guidelines. Neon and Clerk added their own skills on install.
+- Feature 1: Neon Postgres (G8–G10). Feature 2: Clerk sign-in, verified on the user's phone (G11, G12).
+- Feature 3: schema + migration runner, data access layer, logging screen with the chalk-and-iron design system, and a usability review with fixes. After first use, the user asked for a dropdown instead of exercise buttons, so it was switched to a native `<select>`. Verified with real sets from the user's phone.
+- Found and corrected my own earlier mistake: the production domain was public, not protected (G5).
+
+**Problems hit:** G5 (corrected), G8–G12.
+
+**Left open:** feature 4 (exercise history) is next. Shared database for dev and prod (see Current state → Database). "iPhone delivery" remains an open decision (PWA install is feature 9).
 
 ### 2026-09-21 — Session 1: empty folder → live, push-to-deploy
 **Done**
