@@ -7,6 +7,7 @@ import { ExerciseSelect, PLATE } from "@/components/exercise-select";
 import { useRestTimer } from "@/components/rest-timer";
 import { recommendedRest, restForRange } from "@/lib/rest";
 import { Button } from "@/components/ui/button";
+import { prefillSet } from "@/lib/prefill";
 import { beats } from "@/lib/progress";
 import type { PR } from "@/lib/prs";
 import type { getActivePlan } from "@/lib/routines";
@@ -25,13 +26,11 @@ const OFF_PLAN = "off-plan";
 export function Logger({
   exercises,
   recentSets,
-  lastSets,
   plan,
   prs,
 }: {
   exercises: Exercise[];
-  recentSets: LoggedSet[];
-  lastSets: LoggedSet[];
+  recentSets: LoggedSet[]; // last ~30 days, newest first
   plan: Plan;
   prs: PR[];
 }) {
@@ -60,8 +59,6 @@ export function Logger({
   const timer = useRestTimer();
 
   const byId = new Map(exercises.map((e) => [e.id, e]));
-  const latestFor = (exerciseId: string) =>
-    sets.find((s) => s.exerciseId === exerciseId) ?? lastSets.find((s) => s.exerciseId === exerciseId);
 
   const todayKey = isClient ? new Date().toDateString() : null;
   const today = todayKey ? sets.filter((s) => new Date(s.performedAt).toDateString() === todayKey) : [];
@@ -95,9 +92,10 @@ export function Logger({
     chosenExerciseId ?? nextPlanned?.exerciseId ?? recentSets[0]?.exerciseId ?? exercises[0]?.id ?? "";
   const target = day?.exercises.find((e) => e.exerciseId === exerciseId);
 
-  const last = latestFor(exerciseId);
-  const weight = weightInput ?? (last ? String(last.weight) : "");
-  const reps = repsInput ?? (last ? String(last.reps) : "");
+  // Pre-fill replays your last session of this exercise, set by set (lib/prefill.ts).
+  const template = todayKey ? prefillSet(sets, exerciseId, todayKey, doneToday(exerciseId)) : undefined;
+  const weight = weightInput ?? (template ? String(template.weight) : "");
+  const reps = repsInput ?? (template ? String(template.reps) : "");
   const weightNum = Number(weight);
   const repsNum = Number(reps);
   const valid =
@@ -111,7 +109,7 @@ export function Logger({
 
   function selectExercise(id: string | null) {
     setChosenExerciseId(id);
-    setWeightInput(null); // pre-fill from that exercise's last set
+    setWeightInput(null); // fall back to the pre-fill for that exercise
     setRepsInput(null);
   }
 
@@ -144,6 +142,8 @@ export function Logger({
   function logSet() {
     const set = { id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum, routineDayId: day?.id ?? null };
     save(set);
+    setWeightInput(null); // the next set pre-fills from last session's next set
+    setRepsInput(null);
 
     // New PR? Only against a best you had before; a first-ever session shouldn't cheer every warm-up.
     const saved = prs.find((p) => p.exerciseId === exerciseId);

@@ -73,14 +73,16 @@ export async function listRecentSets(): Promise<LoggedSet[]> {
   return rows.map(toLoggedSet);
 }
 
-// The latest set per exercise, used to pre-fill weight and reps.
-export async function listLastSetPerExercise(): Promise<LoggedSet[]> {
+// Enough history for the logger to replay your last session of each exercise, set by set.
+// The phone groups these into its own calendar days. Exercises you haven't trained in this
+// window simply start blank.
+export async function listSetsSince(days = 30): Promise<LoggedSet[]> {
   const userId = await requireUserId();
   const { rows } = await pool.query(
-    `select distinct on (exercise_id) ${COLUMNS} from sets
-     where user_id = $1
-     order by exercise_id, performed_at desc`,
-    [userId],
+    `select ${COLUMNS} from sets
+     where user_id = $1 and performed_at > now() - ($2 || ' days')::interval
+     order by performed_at desc`,
+    [userId, days],
   );
   return rows.map(toLoggedSet);
 }
