@@ -9,7 +9,7 @@ import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
-import { deleteSetAction, logSetAction } from "./actions";
+import { completeWorkoutAction, deleteSetAction, logSetAction } from "./actions";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
 type SetRow = LoggedSet & { pending?: boolean };
@@ -35,6 +35,8 @@ export function Logger({
       : state.filter((s) => s.id !== change.id),
   );
   const [, startTransition] = useTransition();
+  const [completing, startCompleting] = useTransition();
+  const [completeError, setCompleteError] = useState(false);
   // "Today" and clock times depend on the phone's timezone, so they render on the client only.
   const isClient = useSyncExternalStore(noSubscribe, () => true, () => false);
 
@@ -62,10 +64,19 @@ export function Logger({
   const lastTrained = newestDaySet
     ? { dayId: newestDaySet.routineDayId!, performedAt: newestDaySet.performedAt }
     : (plan?.lastTrained ?? null);
+  const lastCompletion = plan?.lastCompletion ?? null;
   const day =
     !isClient || chosenDayId === OFF_PLAN
       ? null
-      : (days.find((d) => d.id === chosenDayId) ?? rotationDay(days, lastTrained));
+      : (days.find((d) => d.id === chosenDayId) ?? rotationDay(days, lastTrained, lastCompletion));
+
+  // After "Complete workout", show what you did today on that day.
+  const completedDay =
+    todayKey && lastCompletion && new Date(lastCompletion.completedAt).toDateString() === todayKey
+      ? days.find((d) => d.id === lastCompletion.dayId && d.id !== day?.id)
+      : undefined;
+  const completedSets = completedDay ? today.filter((s) => s.routineDayId === completedDay.id) : [];
+  const daySetsToday = day ? today.filter((s) => s.routineDayId === day.id).length : 0;
 
   // The next planned exercise you haven't finished today, unless you picked one yourself.
   const nextPlanned =
@@ -143,6 +154,20 @@ export function Logger({
     });
   }
 
+  // Moves on to the next day. Logging under this day again reopens it, so no undo needed.
+  function completeDay(dayId: string) {
+    setCompleteError(false);
+    startCompleting(async () => {
+      try {
+        await completeWorkoutAction(dayId);
+        setChosenDayId(null);
+        selectExercise(null);
+      } catch {
+        setCompleteError(true);
+      }
+    });
+  }
+
   // Restores the set with its original id, time and routine day.
   const undoDelete = (set: LoggedSet) =>
     save({
@@ -158,6 +183,15 @@ export function Logger({
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-7 px-4 pt-4 pb-12">
       {plan && isClient ? (
         <section aria-labelledby="plan" className="flex flex-col gap-3">
+          {completedDay && (
+            <p role="status" className="flex items-center gap-2 rounded-lg bg-secondary p-3 text-sm">
+              <Check aria-hidden className="size-5 shrink-0 text-plate-green" />
+              <span>
+                {completedDay.name} complete: {completedSets.length} {completedSets.length === 1 ? "set" : "sets"},{" "}
+                {completedSets.reduce((sum, s) => sum + s.weight * s.reps, 0).toLocaleString()} lb total volume.
+              </span>
+            </p>
+          )}
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-sm text-muted-foreground">{plan.routine.name}</p>
@@ -341,6 +375,22 @@ export function Logger({
             );
           })}
         </ul>
+
+        {day && daySetsToday > 0 && (
+          <Button
+            variant="outline"
+            className="mt-4 h-14 text-lg font-semibold"
+            disabled={completing}
+            onClick={() => completeDay(day.id)}
+          >
+            <Check /> {completing ? "Completing…" : `Complete ${day.name}`}
+          </Button>
+        )}
+        {completeError && (
+          <p role="alert" className="text-center text-sm text-destructive">
+            Couldn’t complete the workout. Check your signal and try again.
+          </p>
+        )}
       </section>
     </main>
   );

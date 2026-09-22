@@ -82,6 +82,7 @@ export async function getRoutine(id: string): Promise<Routine | null> {
 export async function getActivePlan(): Promise<{
   routine: Routine;
   lastTrained: { dayId: string; performedAt: string } | null;
+  lastCompletion: { dayId: string; completedAt: string } | null;
 } | null> {
   const userId = await requireUserId();
   const active = (
@@ -89,7 +90,7 @@ export async function getActivePlan(): Promise<{
   ).rows[0];
   if (!active) return null;
 
-  const [routine, last] = await Promise.all([
+  const [routine, last, completion] = await Promise.all([
     getRoutine(active.id),
     pool.query(
       `select s.routine_day_id, s.performed_at from sets s
@@ -98,13 +99,35 @@ export async function getActivePlan(): Promise<{
        order by s.performed_at desc limit 1`,
       [userId, active.id],
     ),
+    pool.query(
+      `select w.routine_day_id, w.completed_at from workouts w
+       join routine_days d on d.id = w.routine_day_id
+       where w.user_id = $1 and d.routine_id = $2
+       order by w.completed_at desc limit 1`,
+      [userId, active.id],
+    ),
   ]);
   if (!routine) return null;
-  const row = last.rows[0];
+  const set = last.rows[0];
+  const done = completion.rows[0];
   return {
     routine,
-    lastTrained: row ? { dayId: row.routine_day_id, performedAt: row.performed_at.toISOString() } : null,
+    lastTrained: set ? { dayId: set.routine_day_id, performedAt: set.performed_at.toISOString() } : null,
+    lastCompletion: done ? { dayId: done.routine_day_id, completedAt: done.completed_at.toISOString() } : null,
   };
+}
+
+// "Complete workout" for a routine day you own.
+export async function completeWorkout(dayId: string) {
+  const userId = await requireUserId();
+  if (!UUID.test(dayId)) throw new Error("Invalid day");
+  const { rowCount } = await pool.query(
+    `insert into workouts (user_id, routine_day_id)
+     select $2, d.id from routine_days d join routines r on r.id = d.routine_id
+     where d.id = $1 and r.user_id = $2`,
+    [dayId, userId],
+  );
+  if (rowCount === 0) throw new Error("Routine day not found");
 }
 
 export async function createRoutine(template: Template): Promise<string> {
