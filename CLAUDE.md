@@ -18,4 +18,5 @@ Keep the top sections describing the present; history goes in the log. The repo 
 ## Skills
 
 - **ponytail** governs what gets built: take the simplest thing that works. One standing exception to its terse-output rule: the user is using this project to learn frontend (React, Next.js, Tailwind, shadcn). Explaining *why* on frontend and architecture choices counts as explicitly requested, so give it in full. Ponytail still applies to the code itself.
+- **frontend-design** shapes how the app looks; **web-design-guidelines** reviews UI for usability and accessibility. The user wants it "as pretty as possible while still being simple to use." When looks and speed conflict, **speed wins**: logging happens between sets, so nothing (animations, extra taps, confirmation dialogs) may slow it down. Ponytail still governs the code.
 - **graphify:** once `graphify-out/` exists, use it for questions about how the codebase fits together. `graphify-out/` is gitignored and must never be committed.

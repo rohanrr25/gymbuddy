@@ -1,11 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ClerkProvider, UserButton } from "@clerk/nextjs";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow, Barlow_Condensed, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
+// Barlow: one family, drawn from highway signage. Utilitarian and very legible.
+// The condensed cut is reserved for numbers.
+const barlow = Barlow({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const barlowCondensed = Barlow_Condensed({
+  variable: "--font-barlow-condensed",
+  subsets: ["latin"],
+  weight: ["600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -18,15 +27,22 @@ export const metadata: Metadata = {
   description: "Track workouts, routines, and personal records.",
 };
 
+export const viewport: Viewport = {
+  themeColor: "#f3f4f2",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${barlow.variable} ${barlowCondensed.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ClerkProvider>
-          <header className="flex justify-end p-4">
+          <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 pt-4">
+            <span translate="no" className="font-display text-xl font-bold tracking-tight">
+              GymBuddy
+            </span>
             <UserButton />
           </header>
           {children}
