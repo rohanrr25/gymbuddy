@@ -77,6 +77,36 @@ export async function getRoutine(id: string): Promise<Routine | null> {
   };
 }
 
+// The active routine plus the last set logged under one of its days, which is
+// what rotation needs. The phone decides "today" from its own clock.
+export async function getActivePlan(): Promise<{
+  routine: Routine;
+  lastTrained: { dayId: string; performedAt: string } | null;
+} | null> {
+  const userId = await requireUserId();
+  const active = (
+    await pool.query("select id from routines where user_id = $1 and is_active", [userId])
+  ).rows[0];
+  if (!active) return null;
+
+  const [routine, last] = await Promise.all([
+    getRoutine(active.id),
+    pool.query(
+      `select s.routine_day_id, s.performed_at from sets s
+       join routine_days d on d.id = s.routine_day_id
+       where s.user_id = $1 and d.routine_id = $2
+       order by s.performed_at desc limit 1`,
+      [userId, active.id],
+    ),
+  ]);
+  if (!routine) return null;
+  const row = last.rows[0];
+  return {
+    routine,
+    lastTrained: row ? { dayId: row.routine_day_id, performedAt: row.performed_at.toISOString() } : null,
+  };
+}
+
 export async function createRoutine(template: Template): Promise<string> {
   const userId = await requireUserId();
   const t = TEMPLATES[template];

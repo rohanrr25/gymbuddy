@@ -12,9 +12,11 @@ export type LoggedSet = {
   weight: number; // pounds
   reps: number;
   performedAt: string; // ISO timestamp
+  routineDayId: string | null; // the routine day it was logged under, if any
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const COLUMNS = "id, exercise_id, weight, reps, performed_at, routine_day_id";
 
 async function requireUserId() {
   const { userId } = await auth();
@@ -34,7 +36,7 @@ export async function listExercises(): Promise<Exercise[]> {
 export async function listRecentSets(): Promise<LoggedSet[]> {
   const userId = await requireUserId();
   const { rows } = await pool.query(
-    `select id, exercise_id, weight, reps, performed_at from sets
+    `select ${COLUMNS} from sets
      where user_id = $1 and performed_at > now() - interval '36 hours'
      order by performed_at desc`,
     [userId],
@@ -46,7 +48,7 @@ export async function listRecentSets(): Promise<LoggedSet[]> {
 export async function listLastSetPerExercise(): Promise<LoggedSet[]> {
   const userId = await requireUserId();
   const { rows } = await pool.query(
-    `select distinct on (exercise_id) id, exercise_id, weight, reps, performed_at from sets
+    `select distinct on (exercise_id) ${COLUMNS} from sets
      where user_id = $1
      order by exercise_id, performed_at desc`,
     [userId],
@@ -54,11 +56,18 @@ export async function listLastSetPerExercise(): Promise<LoggedSet[]> {
   return rows.map(toLoggedSet);
 }
 
-export type NewSet = { id: string; exerciseId: string; weight: number; reps: number; performedAt?: string };
+export type NewSet = {
+  id: string;
+  exerciseId: string;
+  weight: number;
+  reps: number;
+  performedAt?: string;
+  routineDayId?: string | null;
+};
 
 export async function logSet(input: NewSet) {
   const userId = await requireUserId();
-  const { id, exerciseId, weight, reps, performedAt } = input;
+  const { id, exerciseId, weight, reps, performedAt, routineDayId = null } = input;
   if (!UUID.test(id) || !UUID.test(exerciseId)) throw new Error("Invalid id");
   if (!Number.isFinite(weight) || weight < 0 || weight > 2000) throw new Error("Weight must be 0–2000 lb");
   if (!Number.isInteger(reps) || reps < 1 || reps > 100) throw new Error("Reps must be 1–100");
@@ -67,13 +76,22 @@ export async function logSet(input: NewSet) {
   if (at && (Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 5 * 60_000)) {
     throw new Error("Invalid time");
   }
+  if (routineDayId !== null) {
+    if (!UUID.test(routineDayId)) throw new Error("Invalid routine day");
+    const { rowCount } = await pool.query(
+      `select 1 from routine_days d join routines r on r.id = d.routine_id
+       where d.id = $1 and r.user_id = $2`,
+      [routineDayId, userId],
+    );
+    if (rowCount === 0) throw new Error("Routine day not found");
+  }
 
   // The id comes from the client, so a retry after lost signal is a no-op, not a duplicate.
   await pool.query(
-    `insert into sets (id, user_id, exercise_id, weight, reps, performed_at)
-     values ($1, $2, $3, $4, $5, coalesce($6::timestamptz, now()))
+    `insert into sets (id, user_id, exercise_id, weight, reps, performed_at, routine_day_id)
+     values ($1, $2, $3, $4, $5, coalesce($6::timestamptz, now()), $7)
      on conflict (id) do nothing`,
-    [id, userId, exerciseId, weight, reps, at],
+    [id, userId, exerciseId, weight, reps, at, routineDayId],
   );
 }
 
@@ -83,12 +101,20 @@ export async function deleteSet(id: string) {
   await pool.query("delete from sets where id = $1 and user_id = $2", [id, userId]);
 }
 
-function toLoggedSet(r: { id: string; exercise_id: string; weight: string; reps: number; performed_at: Date }): LoggedSet {
+function toLoggedSet(r: {
+  id: string;
+  exercise_id: string;
+  weight: string;
+  reps: number;
+  performed_at: Date;
+  routine_day_id: string | null;
+}): LoggedSet {
   return {
     id: r.id,
     exerciseId: r.exercise_id,
     weight: Number(r.weight), // pg returns numeric as a string
     reps: r.reps,
     performedAt: r.performed_at.toISOString(),
+    routineDayId: r.routine_day_id,
   };
 }

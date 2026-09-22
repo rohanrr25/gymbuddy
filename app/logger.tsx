@@ -1,26 +1,33 @@
 "use client";
 
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, X } from "lucide-react";
 import { ExerciseSelect, PLATE } from "@/components/exercise-select";
 import { Button } from "@/components/ui/button";
+import type { getActivePlan } from "@/lib/routines";
+import { rotationDay } from "@/lib/rotation";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
 import { deleteSetAction, logSetAction } from "./actions";
 
+type Plan = Awaited<ReturnType<typeof getActivePlan>>;
 type SetRow = LoggedSet & { pending?: boolean };
 type Change = { type: "add"; set: SetRow } | { type: "remove"; id: string };
 
 const noSubscribe = () => () => {};
+const OFF_PLAN = "off-plan";
 
 export function Logger({
   exercises,
   recentSets,
   lastSets,
+  plan,
 }: {
   exercises: Exercise[];
   recentSets: LoggedSet[];
   lastSets: LoggedSet[];
+  plan: Plan;
 }) {
   const [sets, applyChange] = useOptimistic<SetRow[], Change>(recentSets, (state, change) =>
     change.type === "add"
@@ -31,17 +38,45 @@ export function Logger({
   // "Today" and clock times depend on the phone's timezone, so they render on the client only.
   const isClient = useSyncExternalStore(noSubscribe, () => true, () => false);
 
-  const byId = new Map(exercises.map((e) => [e.id, e]));
-  const latestFor = (exerciseId: string) =>
-    sets.find((s) => s.exerciseId === exerciseId) ?? lastSets.find((s) => s.exerciseId === exerciseId);
-
-  const [exerciseId, setExerciseId] = useState(() => recentSets[0]?.exerciseId ?? exercises[0]?.id ?? "");
-  const [weight, setWeight] = useState(() => String(latestFor(exerciseId)?.weight ?? ""));
-  const [reps, setReps] = useState(() => String(latestFor(exerciseId)?.reps ?? ""));
+  // null = automatic. Choosing a day, exercise, weight or reps overrides the automatic value.
+  const [chosenDayId, setChosenDayId] = useState<string | null>(null);
+  const [chosenExerciseId, setChosenExerciseId] = useState<string | null>(null);
+  const [weightInput, setWeightInput] = useState<string | null>(null);
+  const [repsInput, setRepsInput] = useState<string | null>(null);
   const [failed, setFailed] = useState<NewSet | null>(null);
   const [deleted, setDeleted] = useState<LoggedSet | null>(null); // offered for undo
   const [deleteError, setDeleteError] = useState(false);
 
+  const byId = new Map(exercises.map((e) => [e.id, e]));
+  const latestFor = (exerciseId: string) =>
+    sets.find((s) => s.exerciseId === exerciseId) ?? lastSets.find((s) => s.exerciseId === exerciseId);
+
+  const todayKey = isClient ? new Date().toDateString() : null;
+  const today = todayKey ? sets.filter((s) => new Date(s.performedAt).toDateString() === todayKey) : [];
+  const doneToday = (exerciseId: string) => today.filter((s) => s.exerciseId === exerciseId).length;
+
+  // Today's routine day. Sets logged on this screen (including just now) count toward rotation.
+  const days = plan?.routine.days ?? [];
+  const dayIds = new Set(days.map((d) => d.id));
+  const newestDaySet = sets.find((s) => s.routineDayId && dayIds.has(s.routineDayId));
+  const lastTrained = newestDaySet
+    ? { dayId: newestDaySet.routineDayId!, performedAt: newestDaySet.performedAt }
+    : (plan?.lastTrained ?? null);
+  const day =
+    !isClient || chosenDayId === OFF_PLAN
+      ? null
+      : (days.find((d) => d.id === chosenDayId) ?? rotationDay(days, lastTrained));
+
+  // The next planned exercise you haven't finished today, unless you picked one yourself.
+  const nextPlanned =
+    day?.exercises.find((e) => doneToday(e.exerciseId) < e.targetSets) ?? day?.exercises[0];
+  const exerciseId =
+    chosenExerciseId ?? nextPlanned?.exerciseId ?? recentSets[0]?.exerciseId ?? exercises[0]?.id ?? "";
+  const target = day?.exercises.find((e) => e.exerciseId === exerciseId);
+
+  const last = latestFor(exerciseId);
+  const weight = weightInput ?? (last ? String(last.weight) : "");
+  const reps = repsInput ?? (last ? String(last.reps) : "");
   const weightNum = Number(weight);
   const repsNum = Number(reps);
   const valid =
@@ -53,11 +88,15 @@ export function Logger({
     repsNum >= 1 &&
     repsNum <= 100;
 
-  function selectExercise(id: string) {
-    setExerciseId(id);
-    const last = latestFor(id);
-    setWeight(last ? String(last.weight) : "");
-    setReps(last ? String(last.reps) : "");
+  function selectExercise(id: string | null) {
+    setChosenExerciseId(id);
+    setWeightInput(null); // pre-fill from that exercise's last set
+    setRepsInput(null);
+  }
+
+  function selectDay(id: string) {
+    setChosenDayId(id);
+    selectExercise(null);
   }
 
   function save(payload: NewSet) {
@@ -66,7 +105,12 @@ export function Logger({
     startTransition(async () => {
       applyChange({
         type: "add",
-        set: { ...payload, performedAt: payload.performedAt ?? new Date().toISOString(), pending: true },
+        set: {
+          ...payload,
+          routineDayId: payload.routineDayId ?? null,
+          performedAt: payload.performedAt ?? new Date().toISOString(),
+          pending: true,
+        },
       });
       try {
         await logSetAction(payload);
@@ -74,6 +118,12 @@ export function Logger({
         setFailed(payload); // Retry resends the same id, so it can't double-log.
       }
     });
+  }
+
+  function logSet() {
+    save({ id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum, routineDayId: day?.id ?? null });
+    // Hit the target number of sets? Move on to the next planned exercise.
+    if (target && doneToday(exerciseId) + 1 >= target.targetSets) selectExercise(null);
   }
 
   // Deletes immediately (no confirmation slows you down) and offers undo instead.
@@ -93,35 +143,137 @@ export function Logger({
     });
   }
 
-  // Restores the set with its original id and time.
+  // Restores the set with its original id, time and routine day.
   const undoDelete = (set: LoggedSet) =>
-    save({ id: set.id, exerciseId: set.exerciseId, weight: set.weight, reps: set.reps, performedAt: set.performedAt });
-
-  const todayKey = isClient ? new Date().toDateString() : null;
-  const today = todayKey ? sets.filter((s) => new Date(s.performedAt).toDateString() === todayKey) : [];
+    save({
+      id: set.id,
+      exerciseId: set.exerciseId,
+      weight: set.weight,
+      reps: set.reps,
+      performedAt: set.performedAt,
+      routineDayId: set.routineDayId,
+    });
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-8 px-4 pt-4 pb-12">
-      <h1 className="sr-only">Log a set</h1>
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm text-muted-foreground">Exercise</span>
-        <ExerciseSelect exercises={exercises} value={exerciseId} onChange={selectExercise} label="Exercise" />
-      </label>
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-7 px-4 pt-4 pb-12">
+      {plan && isClient ? (
+        <section aria-labelledby="plan" className="flex flex-col gap-3">
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-muted-foreground">{plan.routine.name}</p>
+              <h1 id="plan" className="truncate font-display text-3xl font-bold">
+                {day?.name ?? "Off-plan"}
+              </h1>
+            </div>
+            <label className="relative shrink-0">
+              <span className="sr-only">Today’s routine day</span>
+              <select
+                name="day"
+                value={day?.id ?? OFF_PLAN}
+                onChange={(e) => selectDay(e.target.value)}
+                className="h-11 appearance-none rounded-lg border border-border bg-card pr-9 pl-3 text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {days.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+                <option value={OFF_PLAN}>Off-plan</option>
+              </select>
+              <ChevronDown
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+            </label>
+          </div>
+
+          {day && day.exercises.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {day.name} has no exercises yet.{" "}
+              <Link href={`/routines/${plan.routine.id}`} className="font-medium text-foreground underline underline-offset-4">
+                Add them to your routine
+              </Link>
+              , or log anything below.
+            </p>
+          )}
+
+          {day && day.exercises.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {day.exercises.map((row) => {
+                const exercise = byId.get(row.exerciseId);
+                const done = doneToday(row.exerciseId);
+                const complete = done >= row.targetSets;
+                const selected = row.exerciseId === exerciseId;
+                return (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => selectExercise(row.exerciseId)}
+                      className={cn(
+                        "flex h-12 w-full items-center gap-3 rounded-xl border px-3 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                        selected ? "border-primary bg-card" : "border-transparent hover:bg-muted",
+                      )}
+                    >
+                      <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", PLATE[exercise?.muscleGroup ?? ""])} />
+                      <span className={cn("min-w-0 flex-1 truncate", complete && "text-muted-foreground")}>
+                        {exercise?.name}
+                      </span>
+                      <span className="text-sm text-muted-foreground tabular-nums">
+                        {row.targetSets} × {row.repMin}–{row.repMax}
+                      </span>
+                      <span className="flex w-10 justify-end font-display text-lg font-semibold tabular-nums">
+                        {complete ? (
+                          <Check aria-label={`${exercise?.name} done`} className="size-5 text-plate-green" />
+                        ) : (
+                          <span aria-label={`${done} of ${row.targetSets} sets done`}>
+                            {done}/{row.targetSets}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : (
+        <>
+          <h1 className="sr-only">Log a set</h1>
+          {!plan && (
+            <p className="text-sm text-muted-foreground">
+              <Link href="/routines" className="font-medium text-foreground underline underline-offset-4">
+                Set up a routine
+              </Link>{" "}
+              and this screen will show today’s workout.
+            </p>
+          )}
+        </>
+      )}
 
       <section aria-label="Set" className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm text-muted-foreground">Exercise</span>
+          <ExerciseSelect exercises={exercises} value={exerciseId} onChange={selectExercise} label="Exercise" />
+        </label>
+
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-          <NumberField name="Weight" unit="lb" value={weight} onChange={setWeight} step={5} min={0} decimal />
+          <NumberField name="Weight" unit="lb" value={weight} onChange={setWeightInput} step={5} min={0} decimal />
           <span aria-hidden className="pt-3 font-display text-5xl font-semibold text-muted-foreground">
             ×
           </span>
-          <NumberField name="Reps" unit="reps" value={reps} onChange={setReps} step={1} min={1} />
+          <NumberField
+            name="Reps"
+            unit={target ? `reps (aim ${target.repMin}–${target.repMax})` : "reps"}
+            value={reps}
+            onChange={setRepsInput}
+            step={1}
+            min={1}
+          />
         </div>
 
-        <Button
-          className="h-16 w-full text-lg font-semibold"
-          disabled={!valid}
-          onClick={() => save({ id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum })}
-        >
+        <Button className="h-16 w-full text-lg font-semibold" disabled={!valid} onClick={logSet}>
           Log set
         </Button>
         {!valid && (
@@ -226,7 +378,7 @@ function NumberField({
         onFocus={(e) => e.target.select()}
         className="w-full rounded-lg bg-transparent text-center font-display text-7xl font-bold tabular-nums leading-tight outline-none placeholder:text-muted-foreground/40 focus-visible:ring-3 focus-visible:ring-ring/50"
       />
-      <span className="text-sm text-muted-foreground">{unit}</span>
+      <span className="text-center text-sm text-muted-foreground">{unit}</span>
       <div className="mt-3 grid w-full grid-cols-2 gap-2">
         <Button variant="secondary" className="h-12 text-lg" aria-label={`${name} minus ${step}`} onClick={() => nudge(-step)}>
           −{step}
