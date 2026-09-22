@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Exercise, LoggedSet, NewSet } from "@/lib/sets";
 import { cn } from "@/lib/utils";
@@ -118,32 +118,39 @@ export function Logger({
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-8 px-4 pt-4 pb-12">
       <h1 className="sr-only">Log a set</h1>
-      <section aria-label="Exercise" className="flex flex-col gap-2">
-        {groups.map(([group, list]) => (
-          <div key={group} className="flex gap-3">
-            <span className="w-18 shrink-0 pt-3 text-sm text-muted-foreground">{group}</span>
-            <div className="flex flex-wrap gap-2">
-              {list.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  aria-pressed={e.id === exerciseId}
-                  onClick={() => selectExercise(e.id)}
-                  className={cn(
-                    "inline-flex h-11 items-center gap-2 rounded-full border px-3.5 text-[0.95rem] outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                    e.id === exerciseId
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card hover:bg-muted",
-                  )}
-                >
-                  <span aria-hidden className={cn("size-2.5 rounded-full", PLATE[group])} />
-                  {e.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
+      {/* Native select: on iPhone it opens the system wheel picker, grouped by muscle. */}
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm text-muted-foreground">Exercise</span>
+        <span className="relative">
+          <span
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute top-1/2 left-4 size-3 -translate-y-1/2 rounded-full",
+              PLATE[byId.get(exerciseId)?.muscleGroup ?? ""],
+            )}
+          />
+          <select
+            name="exercise"
+            value={exerciseId}
+            onChange={(e) => selectExercise(e.target.value)}
+            className="h-14 w-full appearance-none rounded-xl border border-border bg-card pr-11 pl-11 text-lg font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {groups.map(([group, list]) => (
+              <optgroup key={group} label={group}>
+                {list.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <ChevronDown
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-muted-foreground"
+          />
+        </span>
+      </label>
 
       <section aria-label="Set" className="flex flex-col gap-4">
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
