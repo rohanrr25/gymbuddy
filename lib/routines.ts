@@ -125,9 +125,13 @@ export async function getActivePlan(): Promise<{
   };
 }
 
-// "Complete workout" for a routine day you own.
-export async function completeWorkout(dayId: string) {
+// "Complete workout". A null day is a freestyle session, which still counts toward streaks.
+export async function completeWorkout(dayId: string | null) {
   const userId = await requireUserId();
+  if (dayId === null) {
+    await pool.query("insert into workouts (user_id, routine_day_id) values ($1, null)", [userId]);
+    return;
+  }
   if (!UUID.test(dayId)) throw new Error("Invalid day");
   const { rowCount } = await pool.query(
     `insert into workouts (user_id, routine_day_id)
@@ -136,6 +140,19 @@ export async function completeWorkout(dayId: string) {
     [dayId, userId],
   );
   if (rowCount === 0) throw new Error("Routine day not found");
+}
+
+// When workouts were completed, for streaks and the week strip. The phone groups them
+// into its own calendar days.
+export async function listRecentWorkoutTimes(days = 120): Promise<string[]> {
+  const userId = await requireUserId();
+  const { rows } = await pool.query(
+    `select completed_at from workouts
+     where user_id = $1 and completed_at > now() - ($2 || ' days')::interval
+     order by completed_at`,
+    [userId, days],
+  );
+  return rows.map((r) => r.completed_at.toISOString());
 }
 
 export async function createRoutine(template: Template): Promise<string> {

@@ -22,7 +22,7 @@ export async function addExerciseAction(name: string, muscleGroup: string): Prom
   return id;
 }
 
-export async function completeWorkoutAction(dayId: string) {
+export async function completeWorkoutAction(dayId: string | null) {
   await completeWorkout(dayId);
   refresh();
 }

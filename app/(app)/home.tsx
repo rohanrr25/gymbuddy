@@ -9,7 +9,7 @@ import type { Profile } from "@/lib/profile";
 import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise } from "@/lib/sets";
-import { recentWeek, streakWeeks, trainingDays, workoutsThisWeek } from "@/lib/streak";
+import { dayKey, recentWeek, streakWeeks, trainingDays, workoutsThisWeek } from "@/lib/streak";
 import { cn } from "@/lib/utils";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
@@ -20,11 +20,13 @@ const weekday = new Intl.DateTimeFormat(undefined, { weekday: "narrow" });
 export function Home({
   profile,
   plan,
+  workoutTimes,
   setTimes,
   exercises,
 }: {
   profile: Profile;
   plan: Plan;
+  workoutTimes: string[];
   setTimes: string[];
   exercises: Exercise[];
 }) {
@@ -32,9 +34,12 @@ export function Home({
   const isClient = useSyncExternalStore(noSubscribe, () => true, () => false);
   if (!isClient) return <main className="min-h-96" aria-busy="true" />;
 
-  const days = trainingDays(setTimes);
+  // A day counts once you tap "Complete workout", not just because you logged a set.
+  const days = trainingDays(workoutTimes);
   const streak = streakWeeks(days, profile.weeklyTarget);
   const thisWeek = workoutsThisWeek(days);
+  const todayKey = dayKey(new Date());
+  const unfinished = !days.has(todayKey) && trainingDays(setTimes).has(todayKey);
   const day = plan ? rotationDay(plan.routine.days, plan.lastTrained, plan.lastCompletion) : null;
   const byId = new Map(exercises.map((e) => [e.id, e]));
 
@@ -120,6 +125,19 @@ export function Home({
             this week
           </p>
         </div>
+
+        {unfinished && (
+          <Link
+            href="/log"
+            className="flex items-center gap-2 rounded-lg bg-secondary p-3 text-sm outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="flex-1">
+              You’ve logged sets today. Tap <span className="font-medium">Complete workout</span> to make the day
+              count.
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        )}
 
         <ul className="flex justify-between gap-1">
           {recentWeek(days).map(({ date, trained }) => (

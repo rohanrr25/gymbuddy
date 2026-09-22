@@ -189,7 +189,7 @@ export function Logger({
   }
 
   // Moves on to the next day. Logging under this day again reopens it, so no undo needed.
-  function completeDay(dayId: string) {
+  function completeDay(dayId: string | null) {
     setCompleteError(false);
     startCompleting(async () => {
       try {
@@ -435,14 +435,16 @@ export function Logger({
           })}
         </ul>
 
-        {day && daySetsToday > 0 && (
+        {/* Completing is what makes a day count toward your streak, so a freestyle
+            session (no routine day) can be completed too. */}
+        {today.length > 0 && (day ? daySetsToday > 0 : true) && (
           <Button
             variant="outline"
             className="mt-4 h-14 text-lg font-semibold"
             disabled={completing}
-            onClick={() => completeDay(day.id)}
+            onClick={() => completeDay(day?.id ?? null)}
           >
-            <Check /> {completing ? "Completing…" : `Complete ${day.name}`}
+            <Check /> {completing ? "Completing…" : day ? `Complete ${day.name}` : "Complete workout"}
           </Button>
         )}
         {completeError && (
