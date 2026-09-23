@@ -130,14 +130,9 @@ export function Logger({
   const push = target && todayKey ? suggest(lastSessionSets(sets, exerciseId, todayKey), target) : null;
   // Target met: the button row swaps so "Next exercise" is the primary tap.
   const atTarget = !!target && doneToday(exerciseId) >= target.targetSets;
-  const todayByExercise = [...today]
-    .reverse() // oldest first, so the order matches how you trained
-    .reduce<{ exercise: Exercise | undefined; sets: SetRow[] }[]>((groups, set) => {
-      const group = groups.find((g) => g.exercise?.id === set.exerciseId);
-      if (group) group.sets.push(set);
-      else groups.push({ exercise: byId.get(set.exerciseId), sets: [set] });
-      return groups;
-    }, []);
+  // Today's sets for the exercise you're on, in the order you did them.
+  const currentSets = [...today].reverse().filter((s) => s.exerciseId === exerciseId);
+  const currentWorking = currentSets.filter((s) => s.kind === "working"); // warm-ups don't count
   const showPush = push && doneToday(exerciseId) === 0;
   const weight = weightInput ?? (template ? String(template.weight) : "");
   const reps = repsInput ?? (template ? String(template.reps) : "");
@@ -460,16 +455,35 @@ export function Logger({
       )}
 
       <section aria-label="Set" className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm text-muted-foreground">Exercise</span>
-          <ExerciseSelect
-            exercises={exercises}
-            value={exerciseId}
-            onChange={selectExercise}
-            onCreate={addExerciseAction}
-            label="Exercise"
-          />
-        </label>
+        {day && day.exercises.length > 0 ? (
+          // The plan rows above are the picker; repeating them in a dropdown was clutter.
+          <div className="flex items-center gap-2">
+            <span aria-hidden className={cn("size-3 shrink-0 rounded-full", PLATE[byId.get(exerciseId)?.muscleGroup ?? ""])} />
+            <h2 className="min-w-0 flex-1 truncate font-display text-2xl font-bold">
+              {byId.get(exerciseId)?.name ?? "Pick an exercise"}
+            </h2>
+            <ExerciseSelect
+              variant="link"
+              placeholder="Other exercise"
+              exercises={exercises}
+              value={exerciseId}
+              onChange={selectExercise}
+              onCreate={addExerciseAction}
+              label="Choose another exercise"
+            />
+          </div>
+        ) : (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm text-muted-foreground">Exercise</span>
+            <ExerciseSelect
+              exercises={exercises}
+              value={exerciseId}
+              onChange={selectExercise}
+              onCreate={addExerciseAction}
+              label="Exercise"
+            />
+          </label>
+        )}
 
         {showPush && (
           <div
@@ -623,10 +637,7 @@ export function Logger({
         {timer.toggle}
       </section>
 
-      <section aria-labelledby="today" className="flex flex-col gap-2">
-        <h2 id="today" className="font-display text-2xl font-bold">
-          Today
-        </h2>
+      <section aria-label="This exercise" className="flex flex-col gap-2">
         {deleteError && (
           <p role="alert" className="text-sm text-destructive">
             Couldn’t delete that set. Check your signal and try again.
@@ -642,61 +653,47 @@ export function Logger({
             </Button>
           </div>
         )}
-        {isClient && today.length === 0 && (
-          <p className="text-muted-foreground">No sets yet today. Pick an exercise and log your first set.</p>
-        )}
-        {/* One entry per exercise, with its sets inside: three sets read as one thing done. */}
-        <ul className="flex flex-col gap-3">
-          {todayByExercise.map(({ exercise, sets: exerciseSets }) => {
-            // Both figures count working sets only, so they can't disagree.
-            const workingSets = exerciseSets.filter((s) => s.kind === "working");
-            const volume = workingSets.reduce((sum, s) => sum + s.weight * s.reps, 0);
-            const working = workingSets.length;
-            return (
-              <li key={exercise?.id ?? "unknown"} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
-                <div className="flex items-baseline gap-2">
-                  <span aria-hidden className={cn("size-2.5 shrink-0 self-center rounded-full", PLATE[exercise?.muscleGroup ?? ""])} />
-                  <span className="min-w-0 flex-1 truncate font-medium">{exercise?.name}</span>
-                  <span className="text-sm text-muted-foreground tabular-nums">
-                    {working} {working === 1 ? "set" : "sets"} · {volume.toLocaleString()} lb
-                  </span>
-                </div>
-                <ul className="flex flex-wrap gap-2">
-                  {exerciseSets.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        disabled={s.pending}
-                        aria-label={`Edit ${exercise?.name} ${s.weight} × ${s.reps}`}
-                        onClick={() => startEditing(s)}
-                        className={cn(
-                          "flex h-11 items-center gap-1.5 rounded-lg border px-3 font-display text-lg font-semibold tabular-nums outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                          editing?.id === s.id ? "border-primary bg-secondary" : "border-border hover:bg-muted",
-                          s.pending && "opacity-60",
-                          s.kind !== "working" && "text-muted-foreground",
-                        )}
-                      >
-                        {s.weight} × {s.reps}
-                        {s.kind !== "working" && (
-                          <span className="font-sans text-xs font-normal">
-                            {KIND_LABELS.find(([value]) => value === s.kind)?.[1]}
-                          </span>
-                        )}
-                        {s.effort && (
-                          <span className="font-sans text-xs font-normal text-muted-foreground">
-                            {EFFORT_LABELS.find(([value]) => value === s.effort)?.[1]}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            );
-          })}
-        </ul>
 
-        {/* Editing a logged set: its effort and type are changeable here too, not just at log time. */}
+        {/* Only the exercise you're on. The plan rows above carry the rest of the day. */}
+        {currentSets.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {currentWorking.length} {currentWorking.length === 1 ? "set" : "sets"} ·{" "}
+            {currentWorking.reduce((sum, s) => sum + s.weight * s.reps, 0).toLocaleString()} lb
+          </p>
+        )}
+        {currentSets.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {currentSets.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  disabled={s.pending}
+                  aria-label={`Edit ${byId.get(s.exerciseId)?.name} ${s.weight} × ${s.reps}`}
+                  onClick={() => startEditing(s)}
+                  className={cn(
+                    "flex h-11 items-center gap-1.5 rounded-lg border px-3 font-display text-lg font-semibold tabular-nums outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                    editing?.id === s.id ? "border-primary bg-secondary" : "border-border hover:bg-muted",
+                    s.pending && "opacity-60",
+                    s.kind !== "working" && "text-muted-foreground",
+                  )}
+                >
+                  {s.weight} × {s.reps}
+                  {s.kind !== "working" && (
+                    <span className="font-sans text-xs font-normal">
+                      {KIND_LABELS.find(([value]) => value === s.kind)?.[1]}
+                    </span>
+                  )}
+                  {s.effort && (
+                    <span className="font-sans text-xs font-normal text-muted-foreground">
+                      {EFFORT_LABELS.find(([value]) => value === s.effort)?.[1]}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {editing && (
           <div className="flex flex-col gap-2 rounded-xl border border-primary bg-card p-3">
             <p className="text-sm text-muted-foreground">

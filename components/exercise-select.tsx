@@ -33,6 +33,7 @@ export function ExerciseSelect({
   label,
   placeholder = "Choose exercise…",
   size = "lg",
+  variant = "field",
   onCreate,
 }: {
   exercises: Exercise[];
@@ -41,6 +42,7 @@ export function ExerciseSelect({
   label: string;
   placeholder?: string;
   size?: "lg" | "md";
+  variant?: "field" | "link"; // "link" is a quiet button for when the screen already names the exercise
   onCreate?: (name: string, muscleGroup: string) => Promise<string>;
 }) {
   const [open, setOpen] = useState(false);
@@ -48,6 +50,16 @@ export function ExerciseSelect({
 
   return (
     <>
+      {variant === "link" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <Search aria-hidden className="size-4" />
+          {placeholder}
+        </button>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -63,6 +75,7 @@ export function ExerciseSelect({
         </span>
         <ChevronDown aria-hidden className="size-5 shrink-0 text-muted-foreground" />
       </button>
+      )}
 
       {open && (
         <PickerSheet
