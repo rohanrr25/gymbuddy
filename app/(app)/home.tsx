@@ -10,7 +10,7 @@ import type { Profile } from "@/lib/profile";
 import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
 import type { Exercise } from "@/lib/sets";
-import { dayKey, recentWeek, streakWeeks, trainingDays, workoutsThisWeek } from "@/lib/streak";
+import { currentWeek, dayKey, streakWeeks, trainingDays, workoutsThisWeek } from "@/lib/streak";
 import { Bodyweight } from "./bodyweight";
 import { cn } from "@/lib/utils";
 
@@ -137,14 +137,19 @@ export function Home({
         )}
 
         <ul className="flex justify-between gap-1">
-          {recentWeek(days).map(({ date, trained }) => (
+          {currentWeek(days).map(({ date, trained, today, future }) => (
             <li key={date.toDateString()} className="flex flex-1 flex-col items-center gap-1">
               <span className="text-xs text-muted-foreground">{weekday.format(date)}</span>
               <span
-                aria-label={`${date.toDateString()}: ${trained ? "trained" : "rest"}`}
+                aria-label={`${date.toDateString()}: ${future ? "still to come" : trained ? "trained" : "rest"}`}
                 className={cn(
                   "flex h-9 w-full items-center justify-center rounded-lg text-sm tabular-nums",
-                  trained ? "bg-plate-blue font-medium text-background" : "bg-secondary text-muted-foreground",
+                  trained
+                    ? "bg-plate-blue font-medium text-background"
+                    : future
+                      ? "text-muted-foreground/60" // not missed, just not here yet
+                      : "bg-secondary text-muted-foreground",
+                  today && !trained && "ring-2 ring-foreground/25",
                 )}
               >
                 {date.getDate()}

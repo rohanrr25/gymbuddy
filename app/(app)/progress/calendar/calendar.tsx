@@ -83,7 +83,7 @@ export function WorkoutCalendar({
   function removeDay() {
     if (!selected || !daySets) return;
     const label = `${daySets.length} ${daySets.length === 1 ? "set" : "sets"} on ${fullDate.format(selected)}`;
-    if (!confirm(`Delete ${label}? This can't be undone.`)) return;
+    if (!confirm(`Delete ${label}? This can’t be undone.`)) return;
     setError(null);
     startTransition(async () => {
       try {

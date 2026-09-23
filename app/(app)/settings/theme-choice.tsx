@@ -22,7 +22,7 @@ export function ThemeChoice() {
 
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-sm text-muted-foreground">Appearance</legend>
+      <legend className="sr-only">Appearance</legend>
       <div className="flex gap-2">
         {THEMES.map((option) => (
           <Button

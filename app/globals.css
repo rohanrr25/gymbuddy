@@ -147,4 +147,17 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
+  /* Anyone who asks their phone for less motion gets the app with none: the PR card's
+     entrance, the loading skeleton's pulse, every button transition. Blanket rather than
+     per-component, so a future animation is covered the day it's written. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

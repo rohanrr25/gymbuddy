@@ -52,11 +52,19 @@ export function workoutsThisWeek(days: Set<string>, now = new Date()): number {
   return n;
 }
 
-// The last 7 days, oldest first, for the week strip on Home.
-export function recentWeek(days: Set<string>, now = new Date()) {
+// This Monday-to-Sunday week, for the strip on Home. The same week streakWeeks and
+// workoutsThisWeek count, so the strip and the number beside it can't disagree.
+export function currentWeek(days: Set<string>, now = new Date()) {
+  const start = weekStart(now);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    d.setDate(d.getDate() - (6 - i));
-    return { date: d, trained: days.has(dayKey(d)) };
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    return {
+      date,
+      trained: days.has(dayKey(date)),
+      today: date.getTime() === today,
+      future: date.getTime() > today, // days you haven't reached yet, so they read as blank, not missed
+    };
   });
 }
