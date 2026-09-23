@@ -2,7 +2,7 @@
 
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, TrendingUp, Trophy, X } from "lucide-react";
+import { Check, ChevronDown, TrendingUp, Trophy } from "lucide-react";
 import { ExerciseSelect, PLATE } from "@/components/exercise-select";
 import { useRestTimer } from "@/components/rest-timer";
 import { recommendedRest, restForRange } from "@/lib/rest";
@@ -13,7 +13,7 @@ import { beats } from "@/lib/progress";
 import type { PR } from "@/lib/prs";
 import type { getActivePlan } from "@/lib/routines";
 import { rotationDay } from "@/lib/rotation";
-import type { Effort, Exercise, LoggedSet, NewSet } from "@/lib/sets";
+import type { Effort, Exercise, LoggedSet, NewSet, SetKind } from "@/lib/sets";
 import { cn } from "@/lib/utils";
 import {
   addExerciseAction,
@@ -21,6 +21,8 @@ import {
   deleteSetAction,
   logSetAction,
   setEffortAction,
+  setKindAction,
+  undoCompleteWorkoutAction,
   updateSetAction,
 } from "@/app/actions";
 
@@ -30,10 +32,15 @@ type Change = { type: "add"; set: SetRow } | { type: "remove"; id: string };
 
 const noSubscribe = () => () => {};
 const OFF_PLAN = "off-plan";
+const EXERCISE_KEY = "gymbuddy:exercise";
 const EFFORT_LABELS: [Effort, string][] = [
   ["easy", "Easy"],
   ["on_target", "On target"],
   ["hard", "Hard"],
+];
+const KIND_LABELS: [Exclude<SetKind, "working">, string][] = [
+  ["warmup", "Warm-up"],
+  ["drop", "Drop set"],
 ];
 
 export function Logger({
@@ -55,12 +62,20 @@ export function Logger({
   const [, startTransition] = useTransition();
   const [completing, startCompleting] = useTransition();
   const [completeError, setCompleteError] = useState(false);
+  const [justCompleted, setJustCompleted] = useState(false); // offers Undo
   // "Today" and clock times depend on the phone's timezone, so they render on the client only.
   const isClient = useSyncExternalStore(noSubscribe, () => true, () => false);
 
   // null = automatic. Choosing a day, exercise, weight or reps overrides the automatic value.
   const [chosenDayId, setChosenDayId] = useState<string | null>(null);
-  const [chosenExerciseId, setChosenExerciseId] = useState<string | null>(null);
+  // Survives leaving the tab and coming back, so it doesn't snap to the first planned exercise.
+  const [chosenExerciseId, setChosenExerciseId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(EXERCISE_KEY);
+    } catch {
+      return null;
+    }
+  });
   const [weightInput, setWeightInput] = useState<string | null>(null);
   const [repsInput, setRepsInput] = useState<string | null>(null);
   const [failed, setFailed] = useState<NewSet | null>(null);
@@ -70,14 +85,16 @@ export function Logger({
   const [sessionBests, setSessionBests] = useState(new Map<string, LoggedSet>());
   const [newPR, setNewPR] = useState<{ set: NewSet; previous: { weight: number; reps: number } } | null>(null);
   const timer = useRestTimer();
-  const [rating, setRating] = useState<{ set: NewSet; effort: Effort | null } | null>(null); // the set just logged
+  const [rating, setRating] = useState<{ set: NewSet; effort: Effort | null; kind: SetKind } | null>(null);
   const [editing, setEditing] = useState<LoggedSet | null>(null);
 
   const byId = new Map(exercises.map((e) => [e.id, e]));
 
   const todayKey = isClient ? new Date().toDateString() : null;
   const today = todayKey ? sets.filter((s) => new Date(s.performedAt).toDateString() === todayKey) : [];
-  const doneToday = (exerciseId: string) => today.filter((s) => s.exerciseId === exerciseId).length;
+  // Warm-ups and drop sets don't count toward 3/3, the push, or pre-fill.
+  const doneToday = (exerciseId: string) =>
+    today.filter((s) => s.exerciseId === exerciseId && s.kind === "working").length;
 
   // Today's routine day. Sets logged on this screen (including just now) count toward rotation.
   const days = plan?.routine.days ?? [];
@@ -104,13 +121,23 @@ export function Logger({
   const nextPlanned =
     day?.exercises.find((e) => doneToday(e.exerciseId) < e.targetSets) ?? day?.exercises[0];
   const exerciseId =
-    chosenExerciseId ?? nextPlanned?.exerciseId ?? recentSets[0]?.exerciseId ?? exercises[0]?.id ?? "";
+    chosenExerciseId ?? today[0]?.exerciseId ?? nextPlanned?.exerciseId ?? exercises[0]?.id ?? "";
   const target = day?.exercises.find((e) => e.exerciseId === exerciseId);
 
   // Pre-fill replays your last session of this exercise, set by set (lib/prefill.ts).
   const template = todayKey ? prefillSet(sets, exerciseId, todayKey, doneToday(exerciseId)) : undefined;
   // The push: what to do about the weight, shown before this exercise's first set today.
   const push = target && todayKey ? suggest(lastSessionSets(sets, exerciseId, todayKey), target) : null;
+  // Target met: the button row swaps so "Next exercise" is the primary tap.
+  const atTarget = !!target && doneToday(exerciseId) >= target.targetSets;
+  const todayByExercise = [...today]
+    .reverse() // oldest first, so the order matches how you trained
+    .reduce<{ exercise: Exercise | undefined; sets: SetRow[] }[]>((groups, set) => {
+      const group = groups.find((g) => g.exercise?.id === set.exerciseId);
+      if (group) group.sets.push(set);
+      else groups.push({ exercise: byId.get(set.exerciseId), sets: [set] });
+      return groups;
+    }, []);
   const showPush = push && doneToday(exerciseId) === 0;
   const weight = weightInput ?? (template ? String(template.weight) : "");
   const reps = repsInput ?? (template ? String(template.reps) : "");
@@ -127,6 +154,12 @@ export function Logger({
 
   function selectExercise(id: string | null) {
     setChosenExerciseId(id);
+    try {
+      if (id) sessionStorage.setItem(EXERCISE_KEY, id);
+      else sessionStorage.removeItem(EXERCISE_KEY);
+    } catch {
+      // Private browsing: it just won't persist.
+    }
     setWeightInput(null); // fall back to the pre-fill for that exercise
     setRepsInput(null);
   }
@@ -147,6 +180,7 @@ export function Logger({
           routineDayId: payload.routineDayId ?? null,
           performedAt: payload.performedAt ?? new Date().toISOString(),
           effort: null,
+          kind: "working",
           pending: true,
         },
       });
@@ -161,7 +195,7 @@ export function Logger({
   function logSet() {
     const set = { id: crypto.randomUUID(), exerciseId, weight: weightNum, reps: repsNum, routineDayId: day?.id ?? null };
     save(set);
-    setRating({ set, effort: null });
+    setRating({ set, effort: null, kind: "working" });
     setWeightInput(null); // the next set pre-fills from last session's next set
     setRepsInput(null);
 
@@ -171,7 +205,7 @@ export function Logger({
     const best = saved && earlier ? (beats(earlier, saved) ? earlier : saved) : (saved ?? earlier);
     setNewPR(saved && best && beats(set, best) ? { set, previous: { weight: best.weight, reps: best.reps } } : null);
     if (!earlier || beats(set, earlier)) {
-      setSessionBests(new Map(sessionBests).set(exerciseId, { ...set, performedAt: new Date().toISOString(), effort: null }));
+      setSessionBests(new Map(sessionBests).set(exerciseId, { ...set, performedAt: new Date().toISOString(), effort: null, kind: "working" }));
     }
 
     // Hit the target number of sets? Move on to the next planned exercise, with no rest timer:
@@ -214,6 +248,7 @@ export function Logger({
     startCompleting(async () => {
       try {
         await completeWorkoutAction(dayId);
+        setJustCompleted(true);
         setChosenDayId(null);
         selectExercise(null);
       } catch {
@@ -233,6 +268,39 @@ export function Logger({
         setRating({ ...rating, effort: rating.effort }); // put it back
       }
     });
+  }
+
+  // Warm-up or drop set: it stops counting toward 3/3, the push and pre-fill.
+  function markKind(kind: SetKind) {
+    if (!rating) return;
+    const next = rating.kind === kind ? "working" : kind; // tapping again undoes it
+    setRating({ ...rating, kind: next });
+    startTransition(async () => {
+      try {
+        await setKindAction(rating.set.id, next);
+      } catch {
+        setRating({ ...rating, kind: rating.kind });
+      }
+    });
+  }
+
+  function editEffort(effort: Effort) {
+    if (!editing) return;
+    const next = editing.effort === effort ? null : effort;
+    setEditing({ ...editing, effort: next });
+    startTransition(() => setEffortAction(editing.id, next));
+  }
+
+  function editKind(kind: SetKind) {
+    if (!editing) return;
+    const next = editing.kind === kind ? "working" : kind;
+    setEditing({ ...editing, kind: next });
+    startTransition(() => setKindAction(editing.id, next));
+  }
+
+  function nextExercise() {
+    setRating(null);
+    selectExercise(null); // back to automatic: the next unfinished planned exercise
   }
 
   function startEditing(set: LoggedSet) {
@@ -256,6 +324,19 @@ export function Logger({
         await updateSetAction(id, weightNum, repsNum);
       } catch {
         setFailed(null);
+      }
+    });
+  }
+
+  // An accidental tap is one tap to undo, rather than only self-correcting on the next set.
+  function undoComplete() {
+    setCompleteError(false);
+    startCompleting(async () => {
+      try {
+        await undoCompleteWorkoutAction();
+        setJustCompleted(false);
+      } catch {
+        setCompleteError(true);
       }
     });
   }
@@ -443,6 +524,16 @@ export function Logger({
               Save changes
             </Button>
           </div>
+        ) : atTarget ? (
+          // Target met: moving on is the likely next tap, but an extra set stays one tap away.
+          <div className="flex gap-2">
+            <Button variant="outline" className="h-16 px-5 text-lg" disabled={!valid} onClick={logSet}>
+              Log set
+            </Button>
+            <Button className="h-16 flex-1 text-lg font-semibold" onClick={nextExercise}>
+              Next exercise
+            </Button>
+          </div>
         ) : (
           <Button className="h-16 w-full text-lg font-semibold" disabled={!valid} onClick={logSet}>
             Log set
@@ -453,20 +544,38 @@ export function Logger({
         )}
 
         {rating && !editing && (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2">
-            <span className="px-1 text-sm text-muted-foreground">How did that feel?</span>
-            <div className="ml-auto flex gap-1">
-              {EFFORT_LABELS.map(([value, label]) => (
-                <Button
-                  key={value}
-                  variant={rating.effort === value ? "default" : "ghost"}
-                  aria-pressed={rating.effort === value}
-                  className="h-11 px-3 text-sm"
-                  onClick={() => rate(value)}
-                >
-                  {label}
-                </Button>
-              ))}
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">How did that feel?</span>
+              <div className="ml-auto flex gap-1">
+                {EFFORT_LABELS.map(([value, label]) => (
+                  <Button
+                    key={value}
+                    variant={rating.effort === value ? "default" : "ghost"}
+                    aria-pressed={rating.effort === value}
+                    className="h-11 px-3 text-sm"
+                    onClick={() => rate(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-border pt-2">
+              <span className="text-sm text-muted-foreground">Not a working set?</span>
+              <div className="ml-auto flex gap-1">
+                {KIND_LABELS.map(([value, label]) => (
+                  <Button
+                    key={value}
+                    variant={rating.kind === value ? "default" : "ghost"}
+                    aria-pressed={rating.kind === value}
+                    className="h-11 px-3 text-sm"
+                    onClick={() => markKind(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -525,62 +634,119 @@ export function Logger({
         {isClient && today.length === 0 && (
           <p className="text-muted-foreground">No sets yet today. Pick an exercise and log your first set.</p>
         )}
-        <ul className="divide-y divide-border">
-          {today.map((s) => {
-            const exercise = byId.get(s.exerciseId);
+        {/* One entry per exercise, with its sets inside: three sets read as one thing done. */}
+        <ul className="flex flex-col gap-3">
+          {todayByExercise.map(({ exercise, sets: exerciseSets }) => {
+            // Both figures count working sets only, so they can't disagree.
+            const workingSets = exerciseSets.filter((s) => s.kind === "working");
+            const volume = workingSets.reduce((sum, s) => sum + s.weight * s.reps, 0);
+            const working = workingSets.length;
             return (
-              <li key={s.id} className={cn("flex items-center gap-1 py-1", s.pending && "opacity-60")}>
-                <button
-                  type="button"
-                  disabled={s.pending}
-                  aria-label={`Edit ${exercise?.name} ${s.weight} × ${s.reps}`}
-                  onClick={() => startEditing(s)}
-                  className={cn(
-                    "flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
-                    editing?.id === s.id && "bg-secondary",
-                  )}
-                >
-                  <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", PLATE[exercise?.muscleGroup ?? ""])} />
-                  <span className="min-w-0 flex-1 truncate">
-                    {exercise?.name}
-                    {s.effort && (
-                      <span className="block text-xs text-muted-foreground">
-                        {EFFORT_LABELS.find(([value]) => value === s.effort)?.[1]}
-                      </span>
-                    )}
+              <li key={exercise?.id ?? "unknown"} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
+                <div className="flex items-baseline gap-2">
+                  <span aria-hidden className={cn("size-2.5 shrink-0 self-center rounded-full", PLATE[exercise?.muscleGroup ?? ""])} />
+                  <span className="min-w-0 flex-1 truncate font-medium">{exercise?.name}</span>
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    {working} {working === 1 ? "set" : "sets"} · {volume.toLocaleString()} lb
                   </span>
-                  <span className="font-display text-xl font-semibold tabular-nums">
-                    {s.weight} × {s.reps}
-                  </span>
-                  <time dateTime={s.performedAt} className="w-14 text-right text-sm text-muted-foreground tabular-nums">
-                    {new Date(s.performedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                  </time>
-                </button>
-                <Button
-                  variant="ghost"
-                  className="size-11"
-                  disabled={s.pending}
-                  aria-label={`Delete ${exercise?.name} ${s.weight} × ${s.reps}`}
-                  onClick={() => remove(s)}
-                >
-                  <X />
-                </Button>
+                </div>
+                <ul className="flex flex-wrap gap-2">
+                  {exerciseSets.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        disabled={s.pending}
+                        aria-label={`Edit ${exercise?.name} ${s.weight} × ${s.reps}`}
+                        onClick={() => startEditing(s)}
+                        className={cn(
+                          "flex h-11 items-center gap-1.5 rounded-lg border px-3 font-display text-lg font-semibold tabular-nums outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                          editing?.id === s.id ? "border-primary bg-secondary" : "border-border hover:bg-muted",
+                          s.pending && "opacity-60",
+                          s.kind !== "working" && "text-muted-foreground",
+                        )}
+                      >
+                        {s.weight} × {s.reps}
+                        {s.kind !== "working" && (
+                          <span className="font-sans text-xs font-normal">
+                            {KIND_LABELS.find(([value]) => value === s.kind)?.[1]}
+                          </span>
+                        )}
+                        {s.effort && (
+                          <span className="font-sans text-xs font-normal text-muted-foreground">
+                            {EFFORT_LABELS.find(([value]) => value === s.effort)?.[1]}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </li>
             );
           })}
         </ul>
 
+        {/* Editing a logged set: its effort and type are changeable here too, not just at log time. */}
+        {editing && (
+          <div className="flex flex-col gap-2 rounded-xl border border-primary bg-card p-3">
+            <p className="text-sm text-muted-foreground">
+              Editing {byId.get(editing.exerciseId)?.name} — change the weight and reps above, or:
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {EFFORT_LABELS.map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={editing.effort === value ? "default" : "outline"}
+                  aria-pressed={editing.effort === value}
+                  className="h-11 px-3 text-sm"
+                  onClick={() => editEffort(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+              {KIND_LABELS.map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={editing.kind === value ? "default" : "outline"}
+                  aria-pressed={editing.kind === value}
+                  className="h-11 px-3 text-sm"
+                  onClick={() => editKind(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+              <Button
+                variant="ghost"
+                className="h-11 px-3 text-sm text-destructive hover:text-destructive"
+                onClick={() => {
+                  const set = editing;
+                  cancelEditing();
+                  remove(set);
+                }}
+              >
+                Delete set
+              </Button>
+            </div>
+          </div>
+        )}
         {/* Completing is what makes a day count toward your streak, so a freestyle
             session (no routine day) can be completed too. */}
         {today.length > 0 && (day ? daySetsToday > 0 : true) && (
           <Button
             variant="outline"
-            className="mt-4 h-14 text-lg font-semibold"
+            className="mt-2 h-14 text-lg font-semibold"
             disabled={completing}
             onClick={() => completeDay(day?.id ?? null)}
           >
             <Check /> {completing ? "Completing…" : day ? `Complete ${day.name}` : "Complete workout"}
           </Button>
+        )}
+        {justCompleted && (
+          <div role="status" className="flex items-center justify-between gap-3 rounded-lg bg-secondary p-3 text-sm">
+            <span>Workout completed. It counts toward your streak.</span>
+            <Button variant="outline" className="h-11 shrink-0 px-4" disabled={completing} onClick={undoComplete}>
+              Undo
+            </Button>
+          </div>
         )}
         {completeError && (
           <p role="alert" className="text-center text-sm text-destructive">

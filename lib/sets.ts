@@ -9,6 +9,9 @@ import { isMuscleGroup } from "@/lib/muscle-groups";
 export type Exercise = { id: string; name: string; muscleGroup: string; custom?: boolean };
 export const EFFORTS = ["easy", "on_target", "hard"] as const;
 export type Effort = (typeof EFFORTS)[number];
+// Only working sets count toward a day's target, the push and pre-fill.
+export const SET_KINDS = ["working", "warmup", "drop"] as const;
+export type SetKind = (typeof SET_KINDS)[number];
 export type LoggedSet = {
   id: string;
   exerciseId: string;
@@ -17,10 +20,11 @@ export type LoggedSet = {
   performedAt: string; // ISO timestamp
   routineDayId: string | null; // the routine day it was logged under, if any
   effort: Effort | null; // how it felt, if you said
+  kind: SetKind;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const COLUMNS = "id, exercise_id, weight, reps, performed_at, routine_day_id, effort";
+const COLUMNS = "id, exercise_id, weight, reps, performed_at, routine_day_id, effort, kind";
 
 async function requireUserId() {
   const { userId } = await auth();
@@ -180,6 +184,14 @@ export async function updateSet(id: string, weight: number, reps: number) {
   ]);
 }
 
+// Warm-up, drop set, or a real working set. Changeable after the fact.
+export async function setKind(id: string, kind: SetKind) {
+  const userId = await requireUserId();
+  if (!UUID.test(id)) throw new Error("Invalid id");
+  if (!SET_KINDS.includes(kind)) throw new Error("Unknown set kind");
+  await pool.query("update sets set kind = $3 where id = $1 and user_id = $2", [id, userId, kind]);
+}
+
 // How a set felt. Optional, and changeable.
 export async function setEffort(id: string, effort: Effort | null) {
   const userId = await requireUserId();
@@ -202,6 +214,7 @@ function toLoggedSet(r: {
   performed_at: Date;
   routine_day_id: string | null;
   effort: Effort | null;
+  kind: SetKind;
 }): LoggedSet {
   return {
     id: r.id,
@@ -211,5 +224,6 @@ function toLoggedSet(r: {
     performedAt: r.performed_at.toISOString(),
     routineDayId: r.routine_day_id,
     effort: r.effort,
+    kind: r.kind,
   };
 }

@@ -142,6 +142,18 @@ export async function completeWorkout(dayId: string | null) {
   if (rowCount === 0) throw new Error("Routine day not found");
 }
 
+// Undo an accidental "Complete workout": removes your most recent completion.
+export async function undoLastCompletion(): Promise<boolean> {
+  const userId = await requireUserId();
+  const { rowCount } = await pool.query(
+    `delete from workouts where id = (
+       select id from workouts where user_id = $1 order by completed_at desc limit 1
+     )`,
+    [userId],
+  );
+  return rowCount === 1;
+}
+
 // Completed workouts, for streaks, the week strip and the calendar. The phone groups
 // them into its own calendar days.
 export async function listRecentWorkouts(

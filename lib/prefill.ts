@@ -5,12 +5,15 @@
 // was last time, set 2 what set 2 was, and an extra set past that gets no suggestion — it's
 // new ground, so an inherited number would be a guess.
 
-type SetLike = { exerciseId: string; performedAt: string };
+type SetLike = { exerciseId: string; performedAt: string; kind?: string };
 const localDay = (iso: string) => new Date(iso).toDateString();
 
 // Your most recent session of this exercise before today, oldest set first.
+// Warm-ups and drop sets are left out: you don't want to repeat a warm-up as set 1.
 export function lastSessionSets<S extends SetLike>(sets: S[], exerciseId: string, todayKey: string): S[] {
-  const previous = sets.filter((s) => s.exerciseId === exerciseId && localDay(s.performedAt) !== todayKey);
+  const previous = sets.filter(
+    (s) => s.exerciseId === exerciseId && localDay(s.performedAt) !== todayKey && (s.kind ?? "working") === "working",
+  );
   if (previous.length === 0) return [];
   // `sets` arrives newest first, so the first match is the latest session.
   const day = localDay(previous[0].performedAt);
