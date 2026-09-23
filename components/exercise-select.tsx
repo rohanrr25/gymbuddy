@@ -238,7 +238,10 @@ function PickerSheet({
                   <button
                     type="button"
                     aria-current={e.id === value ? "true" : undefined}
-                    onClick={() => onPick(e.id)}
+                    // Pointer-up fires reliably on iOS, where a click can go missing after a
+                    // scroll. detail === 0 means the "click" came from a keyboard, not a finger.
+                    onPointerUp={() => onPick(e.id)}
+                    onClick={(event) => event.detail === 0 && onPick(e.id)}
                     className={cn(
                       "flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
                       e.id === value && "bg-secondary font-medium",
