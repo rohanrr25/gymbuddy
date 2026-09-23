@@ -147,6 +147,28 @@ Loose ideas land here so nothing is lost and the Features list stays ordered (th
 | Make it a real app | 2026-09-22 | Criteria in Direction; feature 13 is the cheap first step |
 | How-to demos per exercise (animations, or TikTok/Instagram/YouTube links) | 2026-09-22 | **Later**, with notes below |
 
+### Feedback from the first real workout (2026-09-22)
+
+The user's own list after training with it. Triaged; batch 1 is the logging screen, which is where every complaint lands.
+
+| # | Feedback | Where it went |
+|---|---|---|
+| 1 | Sets of one exercise should collapse into one entry, not three rows | Batch 1: Today's list groups by exercise |
+| 2 | Skipped Back Squat for Leg Press; the skipped one sat at the top all session | Batch 1: Next exercise + tap any row to return |
+| 3 | Must be able to go back to an exercise after Next | Batch 1 |
+| 4 | "What happens if I hit Complete workout accidentally?" | Batch 2: **Undo** on the completion banner (today it only self-corrects if you log under that day again) |
+| 5 | Estimate calories from lifts + age + measurements | Parked, pending the user's call: a MET-based estimate is possible from bodyweight, age and session length, but ±30–40%. Show as a labelled range or not at all |
+| 6 | Keyboard Done should log the set; button should become Next exercise | Batch 1. **Extra sets stay possible:** at target, Next exercise becomes primary and Log set stays as a secondary |
+| 7 | PR effect should be more dramatic | Batch 2 |
+| 8 | Exercise dropdown still shows after choosing | Batch 1: on a routine day the plan rows are the picker; the dropdown becomes a smaller "Other exercise" |
+| 9 | Edit difficulty after logging, like weight and reps | Batch 1: tapping a set edits weight, reps, effort and set type |
+| 10 | Page transitions feel slow and clunky | Batch 2. **Measured:** Neon's free plan sleeps when idle, so the first tap after a break pays a wake-up, and no page has a loading state. Fix: skeletons, fewer queries per page, prefetch |
+| 11 | Warm-up and drop sets | Batch 1: marked after logging like effort; excluded from 3/3, the push and pre-fill |
+| 12 | Exercise selection resets to Back Squat when switching pages | Batch 1: remember the current exercise |
+| 13 | Groups with rankings / competition | Later, with **Social** |
+| 14 | Today's muscle group should lead the picker | Batch 2 (user confirmed: the muscle group of today's day) |
+| 15 | Update the routine based on the last workout | Batch 1–2: after an off-plan exercise, offer to add it to the day; offer to drop one you skipped |
+
 ## Open decisions
 
 | Decision | Options | Recommendation | Status |
