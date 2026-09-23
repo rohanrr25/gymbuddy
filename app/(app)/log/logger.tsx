@@ -52,12 +52,14 @@ export function Logger({
   plan,
   prs,
   bodyweight,
+  lastCompletedAt,
 }: {
   exercises: Exercise[];
   recentSets: LoggedSet[]; // last ~30 days, newest first
   plan: Plan;
   prs: PR[];
   bodyweight: number | null; // your latest weighing, in pounds; null if you've never entered one
+  lastCompletedAt: string | null; // your most recent completed workout, freestyle ones included
 }) {
   const [sets, applyChange] = useOptimistic<SetRow[], Change>(recentSets, (state, change) =>
     change.type === "add"
@@ -68,6 +70,7 @@ export function Logger({
   const [completing, startCompleting] = useTransition();
   const [completeError, setCompleteError] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false); // offers Undo
+  const [completedNow, setCompletedNow] = useState(0); // clears the list on the tap, not on the reload
   // "Today" and clock times depend on the phone's timezone, so they render on the client only.
   const isClient = useSyncExternalStore(noSubscribe, () => true, () => false);
 
@@ -159,10 +162,16 @@ export function Logger({
       addExerciseToDayAction(completedDay!.id, exerciseId, reps.length, Math.min(...reps), Math.max(...reps)),
     );
   }
-  // The session on screen: what you've logged today under the day you're on (off-plan sets
-  // count as their own session). Sets from a day you already finished today belong to that
-  // workout, not this one, so they stay out of the list below.
-  const session = today.filter((s) => s.routineDayId === (day?.id ?? null));
+  // The session on screen: everything you've logged today since your last "Complete workout".
+  // Completing is the only thing that clears the list, so nothing you did in this workout
+  // disappears mid-session — including exercises you added off-plan.
+  const clearedAt = Math.max(
+    completedNow,
+    lastCompletedAt && todayKey && new Date(lastCompletedAt).toDateString() === todayKey
+      ? new Date(lastCompletedAt).getTime()
+      : 0,
+  );
+  const session = today.filter((s) => new Date(s.performedAt).getTime() > clearedAt);
 
   // What today mostly trains, so the picker can lead with it. On Push that's Chest, on Pull Back.
   const groupCounts = new Map<string, number>();
@@ -305,6 +314,7 @@ export function Logger({
       try {
         await completeWorkoutAction(dayId);
         setJustCompleted(true);
+        setCompletedNow(Date.now());
         setChosenDayId(null);
         selectExercise(null);
       } catch {
@@ -391,6 +401,7 @@ export function Logger({
       try {
         await undoCompleteWorkoutAction();
         setJustCompleted(false);
+        setCompletedNow(0); // undo brings the workout, and its list, back
       } catch {
         setCompleteError(true);
       }
