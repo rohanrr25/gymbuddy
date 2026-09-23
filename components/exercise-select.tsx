@@ -130,7 +130,9 @@ function PickerSheet({
     setFailed(false);
     startTransition(async () => {
       try {
-        onPick(await onCreate!(newName, muscleGroup));
+        const id = await onCreate!(newName, muscleGroup);
+        ref.current?.close();
+        onPick(id);
       } catch {
         setFailed(true);
       }
@@ -143,11 +145,11 @@ function PickerSheet({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && ref.current?.close()}
       aria-label={label}
-      className="fixed inset-x-0 top-auto bottom-0 m-0 max-h-[85dvh] w-full max-w-md rounded-t-2xl bg-background p-0 text-foreground backdrop:bg-foreground/50 sm:mx-auto"
+      className="fixed inset-x-0 top-auto bottom-0 m-0 h-[80dvh] max-h-[80dvh] w-full max-w-md rounded-t-2xl bg-background p-0 text-foreground backdrop:bg-foreground/50 sm:mx-auto"
     >
       {/* Focus lands here, not in the search box: opening the keyboard over the list every
           time costs more than it saves, since most picks are a scroll and a tap. */}
-      <div autoFocus tabIndex={-1} className="flex max-h-[85dvh] flex-col outline-none">
+      <div autoFocus tabIndex={-1} className="flex h-full flex-col outline-none">
         <div className="flex items-center gap-2 border-b border-border p-3">
           <span className="relative min-w-0 flex-1">
             <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -169,7 +171,7 @@ function PickerSheet({
           </Button>
         </div>
 
-        <div className="overflow-y-auto overscroll-contain p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {canCreate &&
             (creating ? (
               <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
@@ -216,7 +218,10 @@ function PickerSheet({
                     <button
                       type="button"
                       aria-current={e.id === value ? "true" : undefined}
-                      onClick={() => onPick(e.id)}
+                      onClick={() => {
+                        ref.current?.close();
+                        onPick(e.id);
+                      }}
                       className={cn(
                         "flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
                         e.id === value && "bg-secondary font-medium",
