@@ -524,17 +524,28 @@ export function Logger({
               Save changes
             </Button>
           </div>
-        ) : atTarget ? (
-          // Target met: an extra set and moving on are both one tap, and equally weighted.
+        ) : day && day.exercises.length > 0 ? (
+          // Both always available. Emphasis moves to Next once you've hit your target,
+          // but moving on early — or an extra set after — is never more than one tap.
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-16 text-lg font-semibold" disabled={!valid} onClick={logSet}>
+            <Button
+              variant={atTarget ? "outline" : "default"}
+              className="h-16 text-lg font-semibold"
+              disabled={!valid}
+              onClick={logSet}
+            >
               Log
             </Button>
-            <Button className="h-16 text-lg font-semibold" onClick={nextExercise}>
+            <Button
+              variant={atTarget ? "default" : "outline"}
+              className="h-16 text-lg font-semibold"
+              onClick={nextExercise}
+            >
               Next
             </Button>
           </div>
         ) : (
+          // Off-plan: there's no next exercise to move to.
           <Button className="h-16 w-full text-lg font-semibold" disabled={!valid} onClick={logSet}>
             Log set
           </Button>
