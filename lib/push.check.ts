@@ -11,8 +11,11 @@ assert.equal(added?.kind, "add");
 assert.equal(added?.weight, 135 + STEP_LB);
 assert.equal(added?.reps, 8, "a heavier weight restarts at the bottom of the range");
 
-// One set short of the top → stay put.
-assert.equal(suggest([set(135, 12), set(135, 12), set(135, 11)], target)?.kind, "hold");
+// One set short of the top → a recap, not an instruction.
+const held = suggest([set(135, 12), set(135, 12), set(135, 11)], target);
+assert.equal(held?.kind, "hold");
+assert.match(held!.reason, /^12, 12, 11 reps across 3 sets\.$/, "describes last time, never says 'stay until'");
+assert.doesNotMatch(held!.reason, /until/, "no rule about when to add weight: programmes differ");
 
 // Top reps but fewer sets than the target → not yet.
 assert.equal(suggest([set(135, 12), set(135, 12)], target)?.kind, "hold");
@@ -28,7 +31,8 @@ assert.equal(suggest([set(135, 12), set(135, 12), set(135, 12), set(115, 15)], t
 // Everything under the range → the weight is too heavy.
 const heavy = suggest([set(185, 6), set(185, 5)], target);
 assert.equal(heavy?.kind, "heavy");
-assert.equal(heavy?.weight, 185, "it suggests staying, not dropping: one bad day isn't a verdict");
+assert.equal(heavy?.weight, 185, "never suggests dropping weight: one bad day isn't a verdict");
+assert.doesNotMatch(heavy!.reason, /until/, "states the facts, gives no instruction");
 
 // Inside the range → aim for one more rep, capped at the top.
 assert.equal(suggest([set(135, 9), set(135, 8)], target)?.reps, 10);

@@ -5,8 +5,12 @@
 // without needing a flag for either.
 //
 //  - every working set at the top of the range, and enough of them → add weight, restart at the bottom
-//  - some sets inside the range                                    → stay, add reps
-//  - every working set below the range                             → the weight is too heavy
+//  - anything else                                                 → recap last time, no instruction
+//
+// Only the "add" case gives advice. Programs differ on when to add weight — some progress at
+// 7 or 9 reps, not at the top of the range — so telling you to "stay until you hit 12" would be
+// wrong for them. Hitting the top of the range on every set is the one signal that's safe to act
+// on whatever the programme. (A per-exercise "add weight at N reps" setting is the proper fix.)
 //
 // ponytail: the step is a flat 5 lb. Per-exercise increments (2.5 lb for small lifts,
 // 10 for a deadlift) are the obvious upgrade once it's clear the rest is right.
@@ -46,7 +50,7 @@ export function suggest(
       kind: "heavy",
       weight,
       reps: repMin,
-      reason: `Last time ${weight} lb kept you under ${repMin} reps. Stay here until it isn't.`,
+      reason: `${reps.join(", ")} reps — under your ${repMin}–${repMax} range.`,
     };
   }
 
@@ -54,6 +58,6 @@ export function suggest(
     kind: "hold",
     weight,
     reps: Math.min(repMax, Math.max(...reps) + 1),
-    reason: `Stay at ${weight} lb until every set reaches ${repMax}.`,
+    reason: `${reps.join(", ")} reps across ${sets}.`,
   };
 }

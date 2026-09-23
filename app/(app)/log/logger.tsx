@@ -481,7 +481,7 @@ export function Logger({
             <TrendingUp aria-hidden className={cn("size-5 shrink-0", push.kind === "add" ? "text-plate-green" : "text-muted-foreground")} />
             <p className="min-w-0 flex-1 text-sm">
               <span className="font-medium">
-                {push.kind === "add" ? `Go up: ${push.weight} lb × ${push.reps}` : `Stay at ${push.weight} lb`}
+                {push.kind === "add" ? `Go up: ${push.weight} lb × ${push.reps}` : `Last time: ${push.weight} lb`}
               </span>
               <span className="block text-muted-foreground">{push.reason}</span>
             </p>
