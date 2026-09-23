@@ -1,7 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { completeWorkout, undoLastCompletion } from "@/lib/routines";
+import { addExerciseToDay, completeWorkout, removeExerciseFromDay, undoLastCompletion } from "@/lib/routines";
 import { saveBodyweight } from "@/lib/bodyweight";
 import {
   addExercise,
@@ -55,6 +55,22 @@ export async function addExerciseAction(name: string, muscleGroup: string): Prom
 
 export async function completeWorkoutAction(dayId: string | null) {
   await completeWorkout(dayId);
+  refresh();
+}
+
+export async function addExerciseToDayAction(
+  dayId: string,
+  exerciseId: string,
+  targetSets: number,
+  repMin: number,
+  repMax: number,
+) {
+  await addExerciseToDay(dayId, exerciseId, targetSets, repMin, repMax);
+  refresh();
+}
+
+export async function removeExerciseFromDayAction(dayId: string, exerciseId: string) {
+  await removeExerciseFromDay(dayId, exerciseId);
   refresh();
 }
 

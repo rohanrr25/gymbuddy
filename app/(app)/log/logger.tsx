@@ -24,6 +24,8 @@ import {
   setKindAction,
   undoCompleteWorkoutAction,
   updateSetAction,
+  addExerciseToDayAction,
+  removeExerciseFromDayAction,
 } from "@/app/actions";
 
 type Plan = Awaited<ReturnType<typeof getActivePlan>>;
@@ -87,6 +89,8 @@ export function Logger({
   const timer = useRestTimer();
   const [rating, setRating] = useState<{ set: NewSet; effort: Effort | null; kind: SetKind } | null>(null);
   const [editing, setEditing] = useState<LoggedSet | null>(null);
+  const [tidied, setTidied] = useState<string[]>([]); // exercises already added to, or dropped from, the plan
+  const [tidyError, setTidyError] = useState(false);
 
   const byId = new Map(exercises.map((e) => [e.id, e]));
 
@@ -115,6 +119,41 @@ export function Logger({
       ? days.find((d) => d.id === lastCompletion.dayId && d.id !== day?.id)
       : undefined;
   const completedSets = completedDay ? today.filter((s) => s.routineDayId === completedDay.id) : [];
+
+  // What you actually did on the day you just finished, against what the plan said. Warm-ups and
+  // drop sets don't count either way: one warm-up set isn't a reason to add an exercise to a routine.
+  const completedWorking = completedSets.filter((s) => s.kind === "working");
+  const extras = completedDay
+    ? [...new Set(completedWorking.map((s) => s.exerciseId))].filter(
+        (id) => !completedDay.exercises.some((e) => e.exerciseId === id) && !tidied.includes(id),
+      )
+    : [];
+  const skipped = completedDay
+    ? completedDay.exercises.filter(
+        (e) => !completedWorking.some((s) => s.exerciseId === e.exerciseId) && !tidied.includes(e.exerciseId),
+      )
+    : [];
+
+  // Both are optimistic: the row goes straight away and comes back if the write fails.
+  function tidy(exerciseId: string, write: () => Promise<void>) {
+    setTidyError(false);
+    setTidied([...tidied, exerciseId]);
+    startTransition(async () => {
+      try {
+        await write();
+      } catch {
+        setTidied((ids) => ids.filter((id) => id !== exerciseId));
+        setTidyError(true);
+      }
+    });
+  }
+
+  function addToDay(exerciseId: string) {
+    const reps = completedWorking.filter((s) => s.exerciseId === exerciseId).map((s) => s.reps);
+    tidy(exerciseId, () =>
+      addExerciseToDayAction(completedDay!.id, exerciseId, reps.length, Math.min(...reps), Math.max(...reps)),
+    );
+  }
   const daySetsToday = day ? today.filter((s) => s.routineDayId === day.id).length : 0;
 
   // What today mostly trains, so the picker can lead with it. On Push that's Chest, on Pull Back.
@@ -375,6 +414,54 @@ export function Logger({
               </span>
             </p>
           )}
+
+          {/* Only after completing, never mid-session: this is the one moment when what you
+              planned and what you did are both final. */}
+          {completedDay && (extras.length > 0 || skipped.length > 0) && (
+            <div className="flex flex-col gap-1 rounded-lg border border-border p-3">
+              <p className="text-sm text-muted-foreground">Update {completedDay.name} to match?</p>
+              {extras.map((id) => {
+                const reps = completedWorking.filter((s) => s.exerciseId === id).map((s) => s.reps);
+                const [lo, hi] = [Math.min(...reps), Math.max(...reps)];
+                return (
+                  <div key={id} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {byId.get(id)?.name}
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {reps.length} × {lo === hi ? lo : `${lo}–${hi}`}
+                      </span>
+                    </span>
+                    <Button variant="outline" className="h-11 shrink-0 px-4 text-sm" onClick={() => addToDay(id)}>
+                      Add
+                    </Button>
+                  </div>
+                );
+              })}
+              {skipped.map((e) => (
+                <div key={e.exerciseId} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                    {byId.get(e.exerciseId)?.name} · skipped
+                  </span>
+                  <Button
+                    variant="ghost"
+                    className="h-11 shrink-0 px-4 text-sm"
+                    onClick={() =>
+                      tidy(e.exerciseId, () => removeExerciseFromDayAction(completedDay.id, e.exerciseId))
+                    }
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {tidyError && (
+                <p role="alert" className="text-sm text-destructive">
+                  That didn’t save. Check your signal and tap again.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-sm text-muted-foreground">{plan.routine.name}</p>

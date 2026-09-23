@@ -249,6 +249,50 @@ export async function saveRoutine(input: Routine) {
   });
 }
 
+// Keeping a routine honest after a session: add what you actually did, drop what you never do.
+// Both take the day and the exercise rather than a routine_exercises id, because the logger knows
+// what you trained, not which row in the plan it corresponds to.
+export async function addExerciseToDay(
+  dayId: string,
+  exerciseId: string,
+  targetSets: number,
+  repMin: number,
+  repMax: number,
+) {
+  const userId = await requireUserId();
+  if (!UUID.test(dayId) || !UUID.test(exerciseId)) throw new Error("Invalid exercise");
+  const ints = [targetSets, repMin, repMax].every((n) => Number.isInteger(n));
+  if (!ints || targetSets < 1 || targetSets > 20) throw new Error("Sets must be 1–20");
+  if (repMin < 1 || repMax > 100 || repMin > repMax) throw new Error("Rep range must be 1–100, low to high");
+
+  // One statement, so ownership of the day and visibility of the exercise are both conditions
+  // of the insert rather than checks that could pass and then go stale.
+  const { rowCount } = await pool.query(
+    `insert into routine_exercises (id, day_id, exercise_id, position, target_sets, rep_min, rep_max)
+     select $1, d.id, $3,
+            coalesce((select max(position) + 1 from routine_exercises where day_id = d.id), 0),
+            $4, $5, $6
+     from routine_days d join routines r on r.id = d.routine_id
+     where d.id = $2 and r.user_id = $7
+       and exists (select 1 from exercises e where e.id = $3 and (e.user_id is null or e.user_id = $7))
+       and not exists (select 1 from routine_exercises x where x.day_id = d.id and x.exercise_id = $3)`,
+    [crypto.randomUUID(), dayId, exerciseId, targetSets, repMin, repMax, userId],
+  );
+  if (rowCount === 0) throw new Error("Couldn’t add that exercise");
+}
+
+export async function removeExerciseFromDay(dayId: string, exerciseId: string) {
+  const userId = await requireUserId();
+  if (!UUID.test(dayId) || !UUID.test(exerciseId)) throw new Error("Invalid exercise");
+  // Logged sets keep pointing at the day, so history survives dropping it from the plan.
+  await pool.query(
+    `delete from routine_exercises
+     where day_id = $1 and exercise_id = $2
+       and day_id in (select d.id from routine_days d join routines r on r.id = d.routine_id where r.user_id = $3)`,
+    [dayId, exerciseId, userId],
+  );
+}
+
 export async function setActiveRoutine(id: string) {
   const userId = await requireUserId();
   if (!UUID.test(id)) throw new Error("Invalid id");
