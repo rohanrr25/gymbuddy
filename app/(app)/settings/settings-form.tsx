@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const field =
   "h-12 w-full rounded-lg border border-border bg-card px-3 text-base text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-export function SettingsForm({ profile }: { profile: Profile }) {
+export function SettingsForm({ profile, version }: { profile: Profile; version: string }) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [dateOfBirth, setDateOfBirth] = useState(profile.dateOfBirth);
   const [phone, setPhone] = useState(profile.phone ?? "");
@@ -118,6 +118,7 @@ export function SettingsForm({ profile }: { profile: Profile }) {
             Sign out
           </Button>
         </SignOutButton>
+        <p className="pt-2 text-center text-xs text-muted-foreground">Build {version}</p>
       </section>
     </main>
   );
