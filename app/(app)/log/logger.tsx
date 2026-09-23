@@ -462,7 +462,8 @@ export function Logger({
       )}
 
       <section aria-label="Set" className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1.5">
+        {/* Not a <label>: clicking inside one activates its control, which reopened the picker. */}
+        <div className="flex flex-col gap-1.5">
           <span className="text-sm text-muted-foreground">Exercise</span>
           <ExerciseSelect
             exercises={exercises}
@@ -471,7 +472,7 @@ export function Logger({
             onCreate={addExerciseAction}
             label="Exercise"
           />
-        </label>
+        </div>
 
         {showPush && (
           <div

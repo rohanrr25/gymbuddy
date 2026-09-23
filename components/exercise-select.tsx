@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
@@ -105,30 +106,34 @@ export function ExerciseSelect({
         </button>
       )}
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/50"
-          onClick={(e) => e.target === e.currentTarget && closeSheet()}
-        >
+      {/* Rendered on <body>: inside the page it inherited a <label>, whose activation
+          behaviour reopened the sheet the instant a row closed it. */}
+      {open &&
+        createPortal(
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={label}
-            className="h-[80dvh] w-full max-w-md rounded-t-2xl border-t border-border bg-background text-foreground"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/50"
+            onClick={(e) => e.target === e.currentTarget && closeSheet()}
           >
-            <PickerSheet
-              exercises={exercises}
-              value={value}
-              onCreate={onCreate}
-              onClose={closeSheet}
-              onPick={(id) => {
-                closeSheet();
-                onChange(id);
-              }}
-            />
-          </div>
-        </div>
-      )}
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={label}
+              className="h-[80dvh] w-full max-w-md rounded-t-2xl border-t border-border bg-background text-foreground"
+            >
+              <PickerSheet
+                exercises={exercises}
+                value={value}
+                onCreate={onCreate}
+                onClose={closeSheet}
+                onPick={(id) => {
+                  closeSheet();
+                  onChange(id);
+                }}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
