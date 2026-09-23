@@ -9,6 +9,7 @@ import { recommendedRest, restForRange } from "@/lib/rest";
 import { Button } from "@/components/ui/button";
 import { lastSessionSets, prefillSet } from "@/lib/prefill";
 import { suggest } from "@/lib/push";
+import { calorieRange, sessionMinutes } from "@/lib/calories";
 import { beats } from "@/lib/progress";
 import type { PR } from "@/lib/prs";
 import type { getActivePlan } from "@/lib/routines";
@@ -50,11 +51,13 @@ export function Logger({
   recentSets,
   plan,
   prs,
+  bodyweight,
 }: {
   exercises: Exercise[];
   recentSets: LoggedSet[]; // last ~30 days, newest first
   plan: Plan;
   prs: PR[];
+  bodyweight: number | null; // your latest weighing, in pounds; null if you've never entered one
 }) {
   const [sets, applyChange] = useOptimistic<SetRow[], Change>(recentSets, (state, change) =>
     change.type === "add"
@@ -119,6 +122,8 @@ export function Logger({
       ? days.find((d) => d.id === lastCompletion.dayId && d.id !== day?.id)
       : undefined;
   const completedSets = completedDay ? today.filter((s) => s.routineDayId === completedDay.id) : [];
+  const completedMinutes = sessionMinutes(completedSets.map((s) => s.performedAt));
+  const burned = bodyweight ? calorieRange(bodyweight, completedMinutes) : null;
 
   // What you actually did on the day you just finished, against what the plan said. Warm-ups and
   // drop sets don't count either way: one warm-up set isn't a reason to add an exercise to a routine.
@@ -154,7 +159,10 @@ export function Logger({
       addExerciseToDayAction(completedDay!.id, exerciseId, reps.length, Math.min(...reps), Math.max(...reps)),
     );
   }
-  const daySetsToday = day ? today.filter((s) => s.routineDayId === day.id).length : 0;
+  // The session on screen: what you've logged today under the day you're on (off-plan sets
+  // count as their own session). Sets from a day you already finished today belong to that
+  // workout, not this one, so they stay out of the list below.
+  const session = today.filter((s) => s.routineDayId === (day?.id ?? null));
 
   // What today mostly trains, so the picker can lead with it. On Push that's Chest, on Pull Back.
   const groupCounts = new Map<string, number>();
@@ -177,9 +185,8 @@ export function Logger({
   const push = target && todayKey ? suggest(lastSessionSets(sets, exerciseId, todayKey), target) : null;
   // Target met: the button row swaps so "Next exercise" is the primary tap.
   const atTarget = !!target && doneToday(exerciseId) >= target.targetSets;
-  // Today's sets for the exercise you're on, in the order you did them.
-  // Everything logged today, grouped by exercise, in the order you trained them.
-  const todayByExercise = [...today]
+  // This workout's sets, grouped by exercise, in the order you trained them.
+  const todayByExercise = [...session]
     .reverse()
     .reduce<{ exercise: Exercise | undefined; sets: SetRow[] }[]>((groups, set) => {
       const group = groups.find((g) => g.exercise?.id === set.exerciseId);
@@ -406,11 +413,24 @@ export function Logger({
       {plan && isClient ? (
         <section aria-labelledby="plan" className="flex flex-col gap-3">
           {completedDay && (
-            <p role="status" className="flex items-center gap-2 rounded-lg bg-secondary p-3 text-sm">
-              <Check aria-hidden className="size-5 shrink-0 text-plate-green" />
+            <p role="status" className="flex items-start gap-2 rounded-lg bg-secondary p-3 text-sm">
+              <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-plate-green" />
               <span>
                 {completedDay.name} complete: {completedSets.length} {completedSets.length === 1 ? "set" : "sets"},{" "}
                 {completedSets.reduce((sum, s) => sum + s.weight * s.reps, 0).toLocaleString()} lb total volume.
+                {burned && (
+                  // A range, not a number: without a heart-rate strap this is ±30–40%, and a
+                  // single figure would claim a precision we don't have.
+                  <span className="block text-muted-foreground">
+                    Roughly {burned.low.toLocaleString()}–{burned.high.toLocaleString()} kcal, from your weight
+                    over {Math.round(completedMinutes)} minutes.
+                  </span>
+                )}
+                {!bodyweight && completedMinutes > 0 && (
+                  <span className="block text-muted-foreground">
+                    Add your weight on Home to see roughly what a session burns.
+                  </span>
+                )}
               </span>
             </p>
           )}
@@ -845,7 +865,7 @@ export function Logger({
         )}
         {/* Completing is what makes a day count toward your streak, so a freestyle
             session (no routine day) can be completed too. */}
-        {today.length > 0 && (day ? daySetsToday > 0 : true) && (
+        {session.length > 0 && (
           <Button
             variant="outline"
             className="mt-2 h-14 text-lg font-semibold"
