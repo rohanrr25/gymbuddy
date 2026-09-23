@@ -48,77 +48,110 @@ export function ExerciseSelect({
   const [open, setOpen] = useState(false);
   const selected = exercises.find((e) => e.id === value);
 
+  // A plain overlay, not <dialog>: React resets a dialog's open state on re-render, which
+  // left the sheet either stuck open or refusing to open at all. This is fully ours.
+  const closedAt = useRef(0);
+
+  function openSheet() {
+    // A tap that closes the sheet can land on the trigger underneath and reopen it at once.
+    if (Date.now() - closedAt.current < 400) return;
+    setOpen(true);
+  }
+
+  function closeSheet() {
+    closedAt.current = Date.now();
+    setOpen(false);
+  }
+
+  // Escape closes it, and the page behind doesn't scroll while it's up.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeSheet();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
     <>
       {variant === "link" ? (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={openSheet}
           className="flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Search aria-hidden className="size-4" />
           {placeholder}
         </button>
       ) : (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={selected ? `${label}: ${selected.name}. Change` : label}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-xl border border-border bg-card pr-3 pl-4 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
-          size === "lg" ? "h-14 text-lg font-medium" : "h-11 text-base",
-        )}
-      >
-        {selected && <span aria-hidden className={cn("size-3 shrink-0 rounded-full", PLATE[selected.muscleGroup])} />}
-        <span className={cn("min-w-0 flex-1 truncate", !selected && "text-muted-foreground")}>
-          {selected?.name ?? placeholder}
-        </span>
-        <ChevronDown aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-      </button>
+        <button
+          type="button"
+          onClick={openSheet}
+          aria-label={selected ? `${label}: ${selected.name}. Change` : label}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-xl border border-border bg-card pr-3 pl-4 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+            size === "lg" ? "h-14 text-lg font-medium" : "h-11 text-base",
+          )}
+        >
+          {selected && <span aria-hidden className={cn("size-3 shrink-0 rounded-full", PLATE[selected.muscleGroup])} />}
+          <span className={cn("min-w-0 flex-1 truncate", !selected && "text-muted-foreground")}>
+            {selected?.name ?? placeholder}
+          </span>
+          <ChevronDown aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+        </button>
       )}
 
       {open && (
-        <PickerSheet
-          exercises={exercises}
-          label={label}
-          value={value}
-          onCreate={onCreate}
-          onPick={(id) => {
-            onChange(id);
-            setOpen(false);
-          }}
-          onClose={() => setOpen(false)}
-        />
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/50"
+          onClick={(e) => e.target === e.currentTarget && closeSheet()}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
+            className="h-[80dvh] w-full max-w-md rounded-t-2xl border-t border-border bg-background text-foreground"
+          >
+            <PickerSheet
+              exercises={exercises}
+              value={value}
+              onCreate={onCreate}
+              onClose={closeSheet}
+              onPick={(id) => {
+                closeSheet();
+                onChange(id);
+              }}
+            />
+          </div>
+        </div>
       )}
     </>
   );
 }
 
-// A <dialog> gives focus trapping, Escape, and an inert background for free.
+// The contents of the sheet. The <dialog> itself lives in ExerciseSelect, which owns
+// opening and closing; this only has to render and report what you picked.
 function PickerSheet({
   exercises,
-  label,
   value,
   onPick,
   onClose,
   onCreate,
 }: {
   exercises: Exercise[];
-  label: string;
   value: string;
   onPick: (id: string) => void;
   onClose: () => void;
   onCreate?: (name: string, muscleGroup: string) => Promise<string>;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [pending, startTransition] = useTransition();
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    ref.current?.showModal();
-  }, []);
 
   const found = query ? exercises.filter((e) => matches(e.name, query)) : exercises;
   const groups = new Map<string, Exercise[]>();
@@ -130,9 +163,7 @@ function PickerSheet({
     setFailed(false);
     startTransition(async () => {
       try {
-        const id = await onCreate!(newName, muscleGroup);
-        ref.current?.close();
-        onPick(id);
+        onPick(await onCreate!(newName, muscleGroup));
       } catch {
         setFailed(true);
       }
@@ -140,104 +171,89 @@ function PickerSheet({
   }
 
   return (
-    <dialog
-      ref={ref}
-      onClose={onClose}
-      onClick={(e) => e.target === ref.current && ref.current?.close()}
-      aria-label={label}
-      className="fixed inset-x-0 top-auto bottom-0 m-0 h-[80dvh] max-h-[80dvh] w-full max-w-md rounded-t-2xl bg-background p-0 text-foreground backdrop:bg-foreground/50 sm:mx-auto"
-    >
-      {/* Focus lands here, not in the search box: opening the keyboard over the list every
-          time costs more than it saves, since most picks are a scroll and a tap. */}
-      <div autoFocus tabIndex={-1} className="flex h-full flex-col outline-none">
-        <div className="flex items-center gap-2 border-b border-border p-3">
-          <span className="relative min-w-0 flex-1">
-            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              name="exercise-search"
-              autoComplete="off"
-              spellCheck={false}
-              value={query}
-              placeholder="Search exercises…"
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setCreating(false);
-              }}
-              className="h-12 w-full rounded-lg border border-border bg-card pr-3 pl-9 text-base outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </span>
-          <Button variant="ghost" className="size-12 shrink-0" aria-label="Close" onClick={() => ref.current?.close()}>
-            <X />
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto overscroll-contain p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          {canCreate &&
-            (creating ? (
-              <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-                <p className="text-sm text-muted-foreground">
-                  Which muscle group is <span className="font-medium text-foreground">{newName}</span>?
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {MUSCLE_GROUPS.map((group) => (
-                    <Button key={group} variant="outline" className="h-11 px-3" disabled={pending} onClick={() => create(group)}>
-                      <span aria-hidden className={cn("size-2.5 rounded-full", PLATE[group])} />
-                      {group}
-                    </Button>
-                  ))}
-                </div>
-                {failed && (
-                  <p role="alert" className="text-sm text-destructive">
-                    Couldn’t add it. Check your signal and try again.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setCreating(true)}
-                className="flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <Plus aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate">
-                  Add “{newName}” as a new exercise
-                </span>
-              </button>
-            ))}
-
-          {found.length === 0 && !canCreate && (
-            <p className="p-3 text-muted-foreground">No exercise matches “{query}”.</p>
-          )}
-
-          {[...groups].map(([group, list]) => (
-            <section key={group} aria-label={group}>
-              <h3 className="px-3 pt-3 pb-1 text-sm text-muted-foreground">{group}</h3>
-              <ul>
-                {list.map((e) => (
-                  <li key={e.id}>
-                    <button
-                      type="button"
-                      aria-current={e.id === value ? "true" : undefined}
-                      onClick={() => {
-                        ref.current?.close();
-                        onPick(e.id);
-                      }}
-                      className={cn(
-                        "flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
-                        e.id === value && "bg-secondary font-medium",
-                      )}
-                    >
-                      <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", PLATE[group])} />
-                      <span className="min-w-0 flex-1 truncate">{e.name}</span>
-                      {e.custom && <span className="shrink-0 text-xs text-muted-foreground">Yours</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+    // Focus lands here, not in the search box: opening the keyboard over the list every
+    // time costs more than it saves, since most picks are a scroll and a tap.
+    <div autoFocus tabIndex={-1} className="flex h-full flex-col outline-none">
+      <div className="flex items-center gap-2 border-b border-border p-3">
+        <span className="relative min-w-0 flex-1">
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            name="exercise-search"
+            autoComplete="off"
+            spellCheck={false}
+            value={query}
+            placeholder="Search exercises…"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCreating(false);
+            }}
+            className="h-12 w-full rounded-lg border border-border bg-card pr-3 pl-9 text-base outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </span>
+        <Button variant="ghost" className="size-12 shrink-0" aria-label="Close" onClick={onClose}>
+          <X />
+        </Button>
       </div>
-    </dialog>
+
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        {canCreate &&
+          (creating ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+              <p className="text-sm text-muted-foreground">
+                Which muscle group is <span className="font-medium text-foreground">{newName}</span>?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {MUSCLE_GROUPS.map((group) => (
+                  <Button key={group} variant="outline" className="h-11 px-3" disabled={pending} onClick={() => create(group)}>
+                    <span aria-hidden className={cn("size-2.5 rounded-full", PLATE[group])} />
+                    {group}
+                  </Button>
+                ))}
+              </div>
+              {failed && (
+                <p role="alert" className="text-sm text-destructive">
+                  Couldn’t add it. Check your signal and try again.
+                </p>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Plus aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">Add “{newName}” as a new exercise</span>
+            </button>
+          ))}
+
+        {found.length === 0 && !canCreate && <p className="p-3 text-muted-foreground">No exercise matches “{query}”.</p>}
+
+        {[...groups].map(([group, list]) => (
+          <section key={group} aria-label={group}>
+            <h3 className="px-3 pt-3 pb-1 text-sm text-muted-foreground">{group}</h3>
+            <ul>
+              {list.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    aria-current={e.id === value ? "true" : undefined}
+                    onClick={() => onPick(e.id)}
+                    className={cn(
+                      "flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                      e.id === value && "bg-secondary font-medium",
+                    )}
+                  >
+                    <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", PLATE[group])} />
+                    <span className="min-w-0 flex-1 truncate">{e.name}</span>
+                    {e.custom && <span className="shrink-0 text-xs text-muted-foreground">Yours</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -297,6 +297,13 @@ Problems that took more than one attempt. Check here before debugging.
 - **Cause:** a newer commit (`eaccf09`) was pushed minutes later and Vercel only deployed that one.
 - **Not a failure if the newer commit contains it:** check `git merge-base --is-ancestor <old> <new>`, and that the newest deployment is `success`. If the skipped commit was the *latest*, investigate (look at `vercel ls` and the integration's settings).
 
+### G15 — `<dialog>` + React: the sheet wouldn't close (then wouldn't open)
+- **Symptom:** picking an exercise left the picker on screen. After a "fix", it stopped opening at all, while its rows still responded.
+- **Cause:** React re-renders the `<dialog>` element and undoes `showModal()`/`close()` state. Driving it from a click handler, and then from an effect, each broke differently: first stuck open, then never open.
+- **Fix:** don't use `<dialog>` here. The picker is a plain fixed overlay (`role="dialog" aria-modal`), rendered conditionally, with our own Escape handler and body-scroll lock. Predictable, and nothing else owns its state.
+- **Also fixed alongside:** a tap that closes the sheet could land on the trigger underneath and reopen it instantly (indistinguishable from "it never closed"); the trigger now ignores taps for 400 ms after closing.
+- **How it was caught:** a throwaway preview that clicked through open → pick → re-tap and printed the state onto the page. Beware `--virtual-time-budget`: it fast-forwards timers, so `setTimeout` waits measure *before* React commits and every reading comes out one step stale.
+
 ---
 
 ## Lessons for Claude
