@@ -525,13 +525,13 @@ export function Logger({
             </Button>
           </div>
         ) : atTarget ? (
-          // Target met: moving on is the likely next tap, but an extra set stays one tap away.
-          <div className="flex gap-2">
-            <Button variant="outline" className="h-16 px-5 text-lg" disabled={!valid} onClick={logSet}>
-              Log set
+          // Target met: an extra set and moving on are both one tap, and equally weighted.
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" className="h-16 text-lg font-semibold" disabled={!valid} onClick={logSet}>
+              Log
             </Button>
-            <Button className="h-16 flex-1 text-lg font-semibold" onClick={nextExercise}>
-              Next exercise
+            <Button className="h-16 text-lg font-semibold" onClick={nextExercise}>
+              Next
             </Button>
           </div>
         ) : (
