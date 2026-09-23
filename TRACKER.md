@@ -304,6 +304,12 @@ Problems that took more than one attempt. Check here before debugging.
 - **Also fixed alongside:** a tap that closes the sheet could land on the trigger underneath and reopen it instantly (indistinguishable from "it never closed"); the trigger now ignores taps for 400 ms after closing.
 - **How it was caught:** a throwaway preview that clicked through open → pick → re-tap and printed the state onto the page. Beware `--virtual-time-budget`: it fast-forwards timers, so `setTimeout` waits measure *before* React commits and every reading comes out one step stale.
 
+### G16 — A picker inside a `<label>` reopens itself on every pick
+- **Symptom:** the exercise sheet closed for an instant when you tapped a row, then reopened. Reported four times; four component-level fixes (dialog → overlay, a reopen guard, `onPointerUp`) all failed, and every isolated test of the component passed.
+- **Cause:** in `app/(app)/log/logger.tsx` the picker was wrapped in `<label>…</label>` for its caption. Activating *anything* inside a label forwards activation to that label's control — here, the trigger button. So each pick closed the sheet and the label immediately reopened it. My test page rendered the picker bare, so it never reproduced.
+- **Fix:** the overlay now renders on `<body>` through `createPortal`, and the logger uses a `<div>` with a `<span>` caption (the trigger already has its own `aria-label`). `83ad163`.
+- **Rule:** when a component misbehaves only on the real screen, stop testing the component — look at what wraps it. And never wrap a custom control in `<label>`; use a caption plus `aria-label`.
+
 ---
 
 ## Lessons for Claude
@@ -321,6 +327,7 @@ Process mistakes to avoid repeating, not code bugs.
 - **Test scripts in the scratchpad can't see the project's packages.** `require("pg")` failed with `Cannot find module 'pg'`. Run them with `NODE_PATH=<project>/node_modules`.
 - **Work out a check's expected values; don't guess them.** The first `niceTicks` assertions failed because I wrote what I *imagined* the ticks would be (steps of 10), not what the rule produces (~4 round steps → 20). The code was right. Derive expectations from the rule, then assert.
 - **Quote URLs containing `?` in zsh.** `gh api repos/x/y/git/trees/HEAD?recursive=1` failed with `no matches found` because zsh treats an unquoted `?` as a glob.
+- **When a fix keeps failing, question the test, not just the code.** Four attempts at the picker all passed my isolated preview and all failed on the user's phone. The bug was the `<label>` *around* the component, which my preview didn't have. A test that can't reproduce the report isn't evidence the fix worked.
 - **Record the unconfirmed as unconfirmed.** A recommendation the user hasn't answered stays in Open decisions, not Decisions made.
 
 ---
