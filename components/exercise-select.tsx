@@ -36,6 +36,7 @@ export function ExerciseSelect({
   size = "lg",
   variant = "field",
   onCreate,
+  leadGroup,
 }: {
   exercises: Exercise[];
   value: string;
@@ -45,6 +46,7 @@ export function ExerciseSelect({
   size?: "lg" | "md";
   variant?: "field" | "link"; // "link" is a quiet button for when the screen already names the exercise
   onCreate?: (name: string, muscleGroup: string) => Promise<string>;
+  leadGroup?: string; // today's muscle group: sorted to the top so the usual picks are one scroll away
 }) {
   const [open, setOpen] = useState(false);
   const selected = exercises.find((e) => e.id === value);
@@ -123,6 +125,7 @@ export function ExerciseSelect({
               <PickerSheet
                 exercises={exercises}
                 value={value}
+                leadGroup={leadGroup}
                 onCreate={onCreate}
                 onClose={closeSheet}
                 onPick={(id) => {
@@ -146,12 +149,14 @@ function PickerSheet({
   onPick,
   onClose,
   onCreate,
+  leadGroup,
 }: {
   exercises: Exercise[];
   value: string;
   onPick: (id: string) => void;
   onClose: () => void;
   onCreate?: (name: string, muscleGroup: string) => Promise<string>;
+  leadGroup?: string;
 }) {
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
@@ -161,6 +166,8 @@ function PickerSheet({
   const found = query ? exercises.filter((e) => matches(e.name, query)) : exercises;
   const groups = new Map<string, Exercise[]>();
   for (const e of found) groups.set(e.muscleGroup, [...(groups.get(e.muscleGroup) ?? []), e]);
+  // Today's muscle group first. Sort is stable, so every other group keeps its usual order.
+  const ordered = [...groups].sort(([a], [b]) => (a === leadGroup ? -1 : b === leadGroup ? 1 : 0));
   const newName = query.trim().replace(/\s+/g, " ");
   const canCreate = !!onCreate && newName.length > 0 && !exercises.some((e) => normalise(e.name) === normalise(newName));
 
@@ -234,9 +241,12 @@ function PickerSheet({
 
         {found.length === 0 && !canCreate && <p className="p-3 text-muted-foreground">No exercise matches “{query}”.</p>}
 
-        {[...groups].map(([group, list]) => (
+        {ordered.map(([group, list]) => (
           <section key={group} aria-label={group}>
-            <h3 className="px-3 pt-3 pb-1 text-sm text-muted-foreground">{group}</h3>
+            <h3 className="px-3 pt-3 pb-1 text-sm text-muted-foreground">
+              {group}
+              {group === leadGroup && <span className="text-foreground"> · today</span>}
+            </h3>
             <ul>
               {list.map((e) => (
                 <li key={e.id}>

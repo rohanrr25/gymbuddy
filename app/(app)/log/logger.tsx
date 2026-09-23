@@ -117,6 +117,14 @@ export function Logger({
   const completedSets = completedDay ? today.filter((s) => s.routineDayId === completedDay.id) : [];
   const daySetsToday = day ? today.filter((s) => s.routineDayId === day.id).length : 0;
 
+  // What today mostly trains, so the picker can lead with it. On Push that's Chest, on Pull Back.
+  const groupCounts = new Map<string, number>();
+  for (const e of day?.exercises ?? []) {
+    const group = byId.get(e.exerciseId)?.muscleGroup;
+    if (group) groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+  }
+  const todaysGroup = [...groupCounts].sort((a, b) => b[1] - a[1])[0]?.[0];
+
   // The next planned exercise you haven't finished today, unless you picked one yourself.
   const nextPlanned =
     day?.exercises.find((e) => doneToday(e.exerciseId) < e.targetSets) ?? day?.exercises[0];
@@ -471,6 +479,7 @@ export function Logger({
             onChange={selectExercise}
             onCreate={addExerciseAction}
             label="Exercise"
+            leadGroup={todaysGroup}
           />
         </div>
 
@@ -557,6 +566,28 @@ export function Logger({
           <p className="-mt-2 text-center text-sm text-muted-foreground">Enter a weight and 1–100 reps to log.</p>
         )}
 
+        {/* Plate red is reserved for PRs (TRACKER → Design system). It sits directly under the
+            button you just tapped: below the rating row and the timer it landed off-screen, which
+            is what "not dramatic enough" actually meant. Red is used on the big number only, where
+            large-text contrast holds in both themes. */}
+        {newPR && (
+          <div
+            role="status"
+            className="flex animate-in items-center gap-4 rounded-xl border-2 border-plate-red bg-plate-red/10 p-4 duration-500 fade-in slide-in-from-bottom-2 zoom-in-95"
+          >
+            <Trophy aria-hidden className="size-10 shrink-0 animate-in text-plate-red duration-700 zoom-in-50" />
+            <p className="min-w-0 flex-1">
+              <span className="block truncate font-medium">New PR · {byId.get(newPR.set.exerciseId)?.name}</span>
+              <span className="block font-display text-5xl font-bold text-plate-red tabular-nums">
+                {newPR.set.weight} × {newPR.set.reps}
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Beats your {newPR.previous.weight} × {newPR.previous.reps}.
+              </span>
+            </p>
+          </div>
+        )}
+
         {rating && !editing && (
           <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
             <div className="flex items-center gap-2">
@@ -595,21 +626,6 @@ export function Logger({
         )}
 
         {timer.panel}
-
-        {/* Plate red is reserved for PRs (TRACKER → Design system). Text stays in ink. */}
-        {newPR && (
-          <div role="status" className="flex items-center gap-3 rounded-lg border-2 border-plate-red bg-card p-3">
-            <Trophy aria-hidden className="size-6 shrink-0 text-plate-red" />
-            <p className="text-sm">
-              <span className="font-display text-lg font-bold">
-                New PR: {byId.get(newPR.set.exerciseId)?.name} {newPR.set.weight} × {newPR.set.reps}
-              </span>
-              <span className="block text-muted-foreground">
-                Your previous best was {newPR.previous.weight} × {newPR.previous.reps}.
-              </span>
-            </p>
-          </div>
-        )}
 
         {failed && (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 p-3 text-sm">
