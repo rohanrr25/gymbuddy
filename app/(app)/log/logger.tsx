@@ -95,6 +95,7 @@ export function Logger({
   const timer = useRestTimer();
   const [rating, setRating] = useState<{ set: NewSet; effort: Effort | null; kind: SetKind } | null>(null);
   const [editing, setEditing] = useState<LoggedSet | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false); // "Next" opens the exercise picker
   const [tidied, setTidied] = useState<string[]>([]); // exercises already added to, or dropped from, the plan
   const [tidyError, setTidyError] = useState(false);
 
@@ -364,9 +365,11 @@ export function Logger({
     startTransition(() => setKindAction(editing.id, next));
   }
 
+  // "Next" opens the picker rather than silently jumping to the next planned exercise: which
+  // exercise comes next is yours to decide, and machines get taken.
   function nextExercise() {
     setRating(null);
-    selectExercise(null); // back to automatic: the next unfinished planned exercise
+    setPickerOpen(true);
   }
 
   function startEditing(set: LoggedSet) {
@@ -598,6 +601,8 @@ export function Logger({
             onCreate={addExerciseAction}
             label="Exercise"
             leadGroup={todaysGroup}
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
           />
         </div>
 

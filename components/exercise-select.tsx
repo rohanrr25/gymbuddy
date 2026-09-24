@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,8 @@ export function ExerciseSelect({
   variant = "field",
   onCreate,
   leadGroup,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   exercises: Exercise[];
   value: string;
@@ -47,8 +49,19 @@ export function ExerciseSelect({
   variant?: "field" | "link"; // "link" is a quiet button for when the screen already names the exercise
   onCreate?: (name: string, muscleGroup: string) => Promise<string>;
   leadGroup?: string; // today's muscle group: sorted to the top so the usual picks are one scroll away
+  // Optional: pass both to open the sheet from outside, as "Next exercise" does.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [selfOpen, setSelfOpen] = useState(false);
+  const open = controlledOpen ?? selfOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setSelfOpen(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
   const selected = exercises.find((e) => e.id === value);
 
   // A plain overlay, not <dialog>: React resets a dialog's open state on re-render, which
@@ -61,10 +74,10 @@ export function ExerciseSelect({
     setOpen(true);
   }
 
-  function closeSheet() {
+  const closeSheet = useCallback(() => {
     closedAt.current = Date.now();
     setOpen(false);
-  }
+  }, [setOpen]);
 
   // Escape closes it, and the page behind doesn't scroll while it's up.
   useEffect(() => {
@@ -77,7 +90,7 @@ export function ExerciseSelect({
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, closeSheet]);
 
   return (
     <>

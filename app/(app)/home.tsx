@@ -43,7 +43,8 @@ export function Home({
   const streak = streakWeeks(days, profile.weeklyTarget);
   const thisWeek = workoutsThisWeek(days);
   const todayKey = dayKey(new Date());
-  const unfinished = !days.has(todayKey) && trainingDays(setTimes).has(todayKey);
+  const setsToday = setTimes.filter((at) => dayKey(new Date(at)) === todayKey).length;
+  const unfinished = !days.has(todayKey) && setsToday > 0;
   const day = plan ? rotationDay(plan.routine.days, plan.lastTrained, plan.lastCompletion) : null;
   const byId = new Map(exercises.map((e) => [e.id, e]));
 
@@ -63,6 +64,11 @@ export function Home({
               <h2 id="today" className="truncate font-display text-3xl font-bold">
                 {day.name}
               </h2>
+              {unfinished && (
+                <p className="text-sm font-medium text-plate-green">
+                  In progress · {setsToday} {setsToday === 1 ? "set" : "sets"} so far
+                </p>
+              )}
             </div>
             {day.exercises.length > 0 && (
               <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
@@ -74,8 +80,9 @@ export function Home({
                 ))}
               </ul>
             )}
+            {/* "Start" is wrong once you're mid-session: you've already started. */}
             <Button className="h-14 text-lg font-semibold" nativeButton={false} render={<Link href="/log" />}>
-              Start {day.name}
+              {unfinished ? "Continue" : "Start"} {day.name}
             </Button>
           </>
         ) : (
