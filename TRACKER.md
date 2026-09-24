@@ -123,6 +123,14 @@ Status: ⬜ not started · 🟡 in progress · ✅ done (with the commit)
 3. **Animations** (looping clips or diagrams) — the nicest experience and by far the most expensive: either licensed assets or ones we make, ~90 of them, plus hosting. Only if this becomes a selling point.
 **Recommendation:** ship 1, add 2 for the top ~20 lifts if it proves useful. Note embedding TikTok or Instagram content in-app has terms-of-service constraints, whereas linking out does not.
 
+**Form correction from a video** — user's idea, 2026-09-23: record a set on your phone and get feedback on your form. The biggest feature on this list, and worth being clear about why before anyone starts it:
+- **Capture is the easy part.** `<input type="file" accept="video/*" capture>` records from the phone; Vercel Blob stores it. A few hours.
+- **Judging the lift is the hard part**, and it isn't one problem. Pose estimation (MediaPipe or MoveNet, both of which run *on the phone*, free, no upload) gives joint positions. Turning joint positions into "your knees caved on rep 3" is a per-exercise rule set someone has to write and test, and it's wrong in ways a beginner can't catch — which is exactly who'd rely on it.
+- **A video model (Claude or Gemini) can describe a clip** without any of that, and would cover any exercise. Costs per video, needs the upload, and still speaks with more confidence than it has.
+- **Privacy is a real obligation here**, not a checkbox: these are videos of the user's body, and the tracker's rule about secrets extends to them. Storage, retention and deletion would need deciding before the first upload, and sharing would need to be off by default.
+- **Cheapest honest version:** record and keep the clip against the set, with no analysis at all — so you can compare this week's squat with last month's yourself. That's most of the value and none of the risk, and it's a natural companion to the how-to links above.
+**Recommendation:** on-device pose estimation over an upload, and self-comparison before automated judgement. Not before the app has weeks of real use.
+
 **Native app** — Expo (React Native) sharing `lib/` and types; needed for notifications while locked, HealthKit, and an **Apple Watch** app (the biggest friction win, the closest thing we have to Strava's "press start"). See Direction.
 
 Editing a logged set · Goals (bulk/cut, targets, timeline) · bodyweight tracking · AI program generation and chat (v2) · Apple Health and other health data (v3) · public release work (own domain, Clerk production instance (G11), **replace the Berserk app icon — someone else's IP**, a public landing page, signup polish, Clerk shadcn theme, privacy policy, Sign in with Apple for the App Store) · offline sync · first `/graphify` run
@@ -146,6 +154,9 @@ Loose ideas land here so nothing is lost and the Features list stays ordered (th
 | Nicer UI and UX | 2026-09-22 | Standing rule (design review on every feature) + feature 14 |
 | Make it a real app | 2026-09-22 | Criteria in Direction; feature 13 is the cheap first step |
 | How-to demos per exercise (animations, or TikTok/Instagram/YouTube links) | 2026-09-22 | **Later**, with notes below |
+| Form correction from a video you record | 2026-09-23 | **Later**, with notes below |
+| A popup to add/remove exercises after finishing a workout | 2026-09-23 | **Deferred with the UI/UX pass.** The function already ships (the tidy card at completion, feature 15); only its presentation would change |
+| Use pull requests instead of pushing to main | 2026-09-23 | **Deferred.** Asked for, then postponed the same session: "lets get the core features out first then worry about the pr structure with ui/ux" |
 
 ### Feedback from the first real workout (2026-09-22)
 
